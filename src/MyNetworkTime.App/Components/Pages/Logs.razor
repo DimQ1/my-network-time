@@ -21,20 +21,27 @@ else
         <div class="panel-header">
             <div>
                 <h2>Recent Events</h2>
-                <p>Seeded entries based on the reference workflow.</p>
+                <p>Stored locally in the app data directory and updated by the sync coordinator.</p>
             </div>
         </div>
 
-        <div class="log-viewer">
-            @foreach (var entry in _logs)
-            {
-                <div class="log-line">
-                    <span class="log-timestamp">@entry.Timestamp.ToLocalTime().ToString("M/d/yyyy h:mm:ss tt")</span>
-                    <span class="log-message">@entry.Message</span>
-                    <span class="log-context">@entry.Context</span>
-                </div>
-            }
-        </div>
+        @if (_logs.Count == 0)
+        {
+            <p class="empty-state">No sync history yet. Run `Update Now` on the dashboard to create the first entries.</p>
+        }
+        else
+        {
+            <div class="log-viewer">
+                @foreach (var entry in _logs)
+                {
+                    <div class="log-line">
+                        <span class="log-timestamp">@entry.Timestamp.ToLocalTime().ToString("M/d/yyyy h:mm:ss tt")</span>
+                        <span class="log-message">@entry.Message</span>
+                        <span class="log-context">@entry.Context</span>
+                    </div>
+                }
+            </div>
+        }
     </section>
 }
 

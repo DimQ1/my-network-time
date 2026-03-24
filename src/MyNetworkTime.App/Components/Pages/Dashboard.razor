@@ -13,10 +13,12 @@ else
         <div>
             <p class="eyebrow">Dashboard</p>
             <h1>Network Time Status</h1>
-            <p class="page-lede">Stage 1 delivers the cross-platform shell, dependency wiring, and platform-aware placeholders for the sync workflow.</p>
+            <p class="page-lede">The shell is now backed by real sync orchestration, persisted settings, and protocol clients for SNTP and RFC868.</p>
         </div>
         <div class="hero-actions">
-            <button type="button" class="btn btn-primary action-button" @onclick="ReloadAsync">Update Now</button>
+            <button type="button" class="btn btn-primary action-button" disabled="@_isRefreshing" @onclick="ReloadAsync">
+                @(_isRefreshing ? "Syncing..." : "Update Now")
+            </button>
             <NavLink class="btn btn-light action-button" href="settings">Settings</NavLink>
         </div>
     </section>
@@ -127,15 +129,24 @@ else
 
 @code {
     private DashboardSnapshot? _snapshot;
+    private bool _isRefreshing;
 
     protected override async Task OnInitializedAsync()
     {
-        await ReloadAsync();
+        _snapshot = await Workspace.GetDashboardAsync();
     }
 
     private async Task ReloadAsync()
     {
-        _snapshot = await Workspace.GetDashboardAsync();
+        _isRefreshing = true;
+        try
+        {
+            _snapshot = await Workspace.RefreshAsync(SyncTrigger.ManualUpdate);
+        }
+        finally
+        {
+            _isRefreshing = false;
+        }
     }
 
     private static string FormatDate(DateTimeOffset? value) =>
