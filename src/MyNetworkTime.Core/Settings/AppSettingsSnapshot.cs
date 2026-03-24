@@ -14,4 +14,5 @@ public sealed record AppSettingsSnapshot(
     TimeInterval AdjustmentThreshold,
     TimeAdjustmentMode AdjustmentMode,
     int AutoCheckEveryDays,
-    string LoggingLevel);
+    string LoggingLevel,
+    bool CollapseToTrayOnMinimize = false);

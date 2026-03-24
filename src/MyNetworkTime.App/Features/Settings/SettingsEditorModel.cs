@@ -66,6 +66,8 @@ internal sealed class SettingsEditorModel : IValidatableObject
 
     public bool ShowTrayIconAtLogin { get; set; } = true;
 
+    public bool CollapseToTrayOnMinimize { get; set; }
+
     public bool StartAtBoot { get; set; } = true;
 
     [Range(1, 999)]
@@ -101,6 +103,7 @@ internal sealed class SettingsEditorModel : IValidatableObject
             AllowPeersToSync = settings.AllowPeersToSync,
             AlwaysProvideTime = settings.AlwaysProvideTime,
             ShowTrayIconAtLogin = settings.ShowTrayIconAtLogin,
+            CollapseToTrayOnMinimize = settings.CollapseToTrayOnMinimize,
             StartAtBoot = settings.StartAtBoot,
             MaxFreeRunValue = settings.MaxFreeRun.Value,
             MaxFreeRunUnit = settings.MaxFreeRun.Unit,
@@ -165,7 +168,8 @@ internal sealed class SettingsEditorModel : IValidatableObject
             AdjustmentThreshold: new TimeInterval(AdjustmentThresholdValue, AdjustmentThresholdUnit),
             AdjustmentMode: AdjustmentMode,
             AutoCheckEveryDays: AutoCheckEveryDays,
-            LoggingLevel: LoggingLevel);
+            LoggingLevel: LoggingLevel,
+            CollapseToTrayOnMinimize: CollapseToTrayOnMinimize);
     }
 
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)

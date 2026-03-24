@@ -1,3 +1,4 @@
+using MyNetworkTime.App.Services;
 using MyNetworkTime.Core.Platforms;
 
 namespace MyNetworkTime.App;
@@ -16,6 +17,9 @@ public partial class App : Application
 
     protected override Window CreateWindow(IActivationState? activationState)
     {
-        return new Window(new MainPage()) { Title = "MyNetworkTime.App" };
+        var trayService = activationState!.Context.Services.GetRequiredService<WindowsTrayBehaviorService>();
+        var window = new Window(new MainPage()) { Title = "MyNetworkTime.App" };
+        trayService.Attach(window);
+        return window;
     }
 }

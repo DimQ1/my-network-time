@@ -16,6 +16,7 @@ internal sealed class NetworkTimeWorkspaceService(
     IPlatformCapabilitiesProvider platformCapabilitiesProvider,
     ITimeAdjustmentService timeAdjustmentService,
     IPermissionGuidanceService permissionGuidanceService,
+    WindowsTrayBehaviorService windowsTrayBehaviorService,
     TimeProvider timeProvider) : INetworkTimeWorkspaceService
 {
     public async ValueTask<DashboardSnapshot> GetDashboardAsync(CancellationToken cancellationToken = default)
@@ -37,8 +38,11 @@ internal sealed class NetworkTimeWorkspaceService(
     public ValueTask<AppSettingsSnapshot> GetSettingsAsync(CancellationToken cancellationToken = default) =>
         settingsRepository.GetAsync(cancellationToken);
 
-    public ValueTask SaveSettingsAsync(AppSettingsSnapshot settings, CancellationToken cancellationToken = default) =>
-        settingsRepository.SaveAsync(settings, cancellationToken);
+    public async ValueTask SaveSettingsAsync(AppSettingsSnapshot settings, CancellationToken cancellationToken = default)
+    {
+        await settingsRepository.SaveAsync(settings, cancellationToken);
+        await windowsTrayBehaviorService.RefreshAsync(cancellationToken);
+    }
 
     public ValueTask<IReadOnlyList<LogEntrySnapshot>> GetLogsAsync(CancellationToken cancellationToken = default) =>
         logRepository.GetRecentAsync(cancellationToken);

@@ -25,6 +25,7 @@ public static class AppSettingsDefaults
             AdjustmentThreshold: new TimeInterval(2, IntervalUnit.Minute),
             AdjustmentMode: TimeAdjustmentMode.AdjustSystemTime,
             AutoCheckEveryDays: 7,
-            LoggingLevel: "Normal");
+            LoggingLevel: "Normal",
+            CollapseToTrayOnMinimize: false);
     }
 }

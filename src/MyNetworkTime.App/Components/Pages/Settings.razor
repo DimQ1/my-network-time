@@ -208,6 +208,14 @@ else
                     </label>
 
                     <label class="toggle-field">
+                        <InputCheckbox class="form-check-input" @bind-Value="_editor.CollapseToTrayOnMinimize" />
+                        <span class="toggle-copy">
+                            <strong>Collapse to Tray on Minimize</strong>
+                            <span>On Windows, minimizing the app window hides it to the tray instead of the taskbar.</span>
+                        </span>
+                    </label>
+
+                    <label class="toggle-field">
                         <InputCheckbox class="form-check-input" @bind-Value="_editor.StartAtBoot" />
                         <span class="toggle-copy">
                             <strong>Start at Boot</strong>
