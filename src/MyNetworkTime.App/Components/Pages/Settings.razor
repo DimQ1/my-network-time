@@ -1,0 +1,151 @@
+@page "/settings"
+@inject INetworkTimeWorkspaceService Workspace
+
+<PageTitle>Settings</PageTitle>
+
+@if (_settings is null)
+{
+    <p class="loading-state">Loading placeholder settings...</p>
+}
+else
+{
+    <section class="page-hero compact-hero">
+        <div>
+            <p class="eyebrow">Settings</p>
+            <h1>Sync Preferences</h1>
+            <p class="page-lede">This stage wires the layout and data model. Editable forms and persistence behavior arrive in the dedicated UI and core stages.</p>
+        </div>
+    </section>
+
+    <section class="panel">
+        <div class="panel-header">
+            <div>
+                <h2>Time Servers</h2>
+                <p>Server roster prepared for SNTP and RFC868 support.</p>
+            </div>
+            <span class="support-pill">Editable in Stage 3</span>
+        </div>
+
+        <div class="table-shell">
+            <table class="server-table">
+                <thead>
+                    <tr>
+                        <th>Hostname or IP Address</th>
+                        <th>Protocol</th>
+                        <th>Port</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var server in _settings.Servers)
+                    {
+                        <tr>
+                            <td>@server.Host</td>
+                            <td>@FormatProtocol(server.Protocol)</td>
+                            <td>@server.Port</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="panel-grid">
+        <article class="panel">
+            <div class="panel-header">
+                <div>
+                    <h2>Intervals</h2>
+                    <p>Bootstrap values mirror the legacy utility.</p>
+                </div>
+            </div>
+            <div class="field-grid">
+                <div class="field-card">
+                    <span class="field-label">Update Interval</span>
+                    <strong class="field-value">@_settings.UpdateInterval</strong>
+                </div>
+                <div class="field-card">
+                    <span class="field-label">Retry Interval</span>
+                    <strong class="field-value">@_settings.RetryInterval</strong>
+                </div>
+                <div class="field-card">
+                    <span class="field-label">Max Free Run</span>
+                    <strong class="field-value">@_settings.MaxFreeRun</strong>
+                </div>
+                <div class="field-card">
+                    <span class="field-label">Adjustment Threshold</span>
+                    <strong class="field-value">@_settings.AdjustmentThreshold</strong>
+                </div>
+            </div>
+        </article>
+
+        <article class="panel">
+            <div class="panel-header">
+                <div>
+                    <h2>Behavior</h2>
+                    <p>Stage 1 keeps these values read-only while the workflow is scaffolded.</p>
+                </div>
+            </div>
+            <div class="field-grid">
+                <div class="field-card">
+                    <span class="field-label">Demote Servers</span>
+                    <strong class="field-value">@FormatBoolean(_settings.DemoteServers)</strong>
+                    <span class="metric-footnote">After @_settings.DemoteAfterFailures failures</span>
+                </div>
+                <div class="field-card">
+                    <span class="field-label">Adjustment Mode</span>
+                    <strong class="field-value">@FormatAdjustmentMode(_settings.AdjustmentMode)</strong>
+                </div>
+                <div class="field-card">
+                    <span class="field-label">Allow Peer Sync</span>
+                    <strong class="field-value">@FormatBoolean(_settings.AllowPeersToSync)</strong>
+                </div>
+                <div class="field-card">
+                    <span class="field-label">Always Provide Time</span>
+                    <strong class="field-value">@FormatBoolean(_settings.AlwaysProvideTime)</strong>
+                </div>
+                <div class="field-card">
+                    <span class="field-label">Tray Icon at Login</span>
+                    <strong class="field-value">@FormatBoolean(_settings.ShowTrayIconAtLogin)</strong>
+                </div>
+                <div class="field-card">
+                    <span class="field-label">Start at Boot</span>
+                    <strong class="field-value">@FormatBoolean(_settings.StartAtBoot)</strong>
+                </div>
+                <div class="field-card">
+                    <span class="field-label">Auto Check for Updates</span>
+                    <strong class="field-value">Every @_settings.AutoCheckEveryDays day(s)</strong>
+                </div>
+                <div class="field-card">
+                    <span class="field-label">Logging Level</span>
+                    <strong class="field-value">@_settings.LoggingLevel</strong>
+                </div>
+            </div>
+        </article>
+    </section>
+}
+
+@code {
+    private AppSettingsSnapshot? _settings;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _settings = await Workspace.GetSettingsAsync();
+    }
+
+    private static string FormatProtocol(ServerProtocol protocol) => protocol switch
+    {
+        ServerProtocol.Sntp => "SNTP",
+        ServerProtocol.Rfc868Tcp => "RFC868 (TCP)",
+        ServerProtocol.Rfc868Udp => "RFC868 (UDP)",
+        _ => "Unknown"
+    };
+
+    private static string FormatAdjustmentMode(TimeAdjustmentMode mode) => mode switch
+    {
+        TimeAdjustmentMode.AdjustSystemTime => "Adjust System Time",
+        TimeAdjustmentMode.DoNotUpdateTime => "Do Not Update Time",
+        TimeAdjustmentMode.AskUser => "Ask User",
+        _ => "Unknown"
+    };
+
+    private static string FormatBoolean(bool value) => value ? "Enabled" : "Disabled";
+}

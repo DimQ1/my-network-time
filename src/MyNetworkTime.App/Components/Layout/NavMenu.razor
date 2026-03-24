@@ -1,0 +1,51 @@
+<div class="nav-frame">
+    <div class="nav-header">
+        <div class="brand-shell">
+            <div class="brand-mark">NT</div>
+            <div>
+                <a class="navbar-brand" href="">My Network Time</a>
+                <p class="brand-copy">NetTime-inspired utility for MAUI Blazor Hybrid.</p>
+            </div>
+        </div>
+
+        <input id="nav-toggle" type="checkbox" title="Navigation menu" class="navbar-toggler" />
+        <label class="nav-toggle-button" for="nav-toggle">
+            <span class="visually-hidden">Toggle navigation</span>
+            <span class="nav-toggle-lines"></span>
+        </label>
+    </div>
+
+    <div class="nav-scrollable">
+        <nav class="nav-links">
+            <div class="nav-item">
+                <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                    <span class="nav-symbol">D</span>
+                    <span>Dashboard</span>
+                </NavLink>
+            </div>
+            <div class="nav-item">
+                <NavLink class="nav-link" href="settings">
+                    <span class="nav-symbol">S</span>
+                    <span>Settings</span>
+                </NavLink>
+            </div>
+            <div class="nav-item">
+                <NavLink class="nav-link" href="logs">
+                    <span class="nav-symbol">L</span>
+                    <span>Logs</span>
+                </NavLink>
+            </div>
+            <div class="nav-item">
+                <NavLink class="nav-link" href="about">
+                    <span class="nav-symbol">A</span>
+                    <span>About</span>
+                </NavLink>
+            </div>
+        </nav>
+
+        <div class="nav-footer">
+            <span class="support-pill nav-pill">Core + UI wired</span>
+            <p class="nav-note">Protocols, persistence, and native clock actions arrive in the next stages.</p>
+        </div>
+    </div>
+</div>

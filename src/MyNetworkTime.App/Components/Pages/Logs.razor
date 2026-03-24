@@ -1,0 +1,48 @@
+@page "/logs"
+@inject INetworkTimeWorkspaceService Workspace
+
+<PageTitle>Logs</PageTitle>
+
+@if (_logs is null)
+{
+    <p class="loading-state">Loading bootstrap logs...</p>
+}
+else
+{
+    <section class="page-hero compact-hero">
+        <div>
+            <p class="eyebrow">Logs</p>
+            <h1>Sync History</h1>
+            <p class="page-lede">A lightweight log viewer is already wired so the real sync engine can drop into place in the next stages.</p>
+        </div>
+    </section>
+
+    <section class="panel">
+        <div class="panel-header">
+            <div>
+                <h2>Recent Events</h2>
+                <p>Seeded entries based on the reference workflow.</p>
+            </div>
+        </div>
+
+        <div class="log-viewer">
+            @foreach (var entry in _logs)
+            {
+                <div class="log-line">
+                    <span class="log-timestamp">@entry.Timestamp.ToLocalTime().ToString("M/d/yyyy h:mm:ss tt")</span>
+                    <span class="log-message">@entry.Message</span>
+                    <span class="log-context">@entry.Context</span>
+                </div>
+            }
+        </div>
+    </section>
+}
+
+@code {
+    private IReadOnlyList<LogEntrySnapshot>? _logs;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _logs = await Workspace.GetLogsAsync();
+    }
+}

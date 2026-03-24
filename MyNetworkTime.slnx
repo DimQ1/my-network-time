@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/MyNetworkTime.App/MyNetworkTime.App.csproj" />
+    <Project Path="src/MyNetworkTime.Core/MyNetworkTime.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/MyNetworkTime.Core.Tests/MyNetworkTime.Core.Tests.csproj" />
+  </Folder>
+</Solution>

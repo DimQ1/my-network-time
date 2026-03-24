@@ -1,0 +1,186 @@
+@page "/"
+@inject INetworkTimeWorkspaceService Workspace
+
+<PageTitle>Dashboard</PageTitle>
+
+@if (_snapshot is null)
+{
+    <p class="loading-state">Loading bootstrap workspace...</p>
+}
+else
+{
+    <section class="page-hero">
+        <div>
+            <p class="eyebrow">Dashboard</p>
+            <h1>Network Time Status</h1>
+            <p class="page-lede">Stage 1 delivers the cross-platform shell, dependency wiring, and platform-aware placeholders for the sync workflow.</p>
+        </div>
+        <div class="hero-actions">
+            <button type="button" class="btn btn-primary action-button" @onclick="ReloadAsync">Update Now</button>
+            <NavLink class="btn btn-light action-button" href="settings">Settings</NavLink>
+        </div>
+    </section>
+
+    <section class="stat-grid">
+        <article class="metric-card">
+            <span class="metric-label">Time</span>
+            <strong>@FormatDate(_snapshot.CurrentTime)</strong>
+        </article>
+        <article class="metric-card">
+            <span class="metric-label">Last Attempt</span>
+            <strong>@FormatDate(_snapshot.LastAttempt)</strong>
+        </article>
+        <article class="metric-card">
+            <span class="metric-label">Last Sync</span>
+            <strong>@FormatDate(_snapshot.LastSync)</strong>
+            <span class="metric-footnote">@FormatOffset(_snapshot.LastSyncOffset)</span>
+        </article>
+        <article class="metric-card">
+            <span class="metric-label">Next Attempt</span>
+            <strong>@FormatCountdown(_snapshot.NextAttemptIn)</strong>
+        </article>
+    </section>
+
+    <section class="panel-grid">
+        <article class="panel panel-emphasis">
+            <div class="panel-header">
+                <div>
+                    <h2>Current Status</h2>
+                    <p>@_snapshot.SummaryStatus</p>
+                </div>
+                <span class="support-pill">@_snapshot.Platform.SupportLevel</span>
+            </div>
+            <dl class="detail-grid">
+                <div>
+                    <dt>Mode</dt>
+                    <dd>@_snapshot.ModeLabel</dd>
+                </div>
+                <div>
+                    <dt>Platform</dt>
+                    <dd>@FormatPlatform(_snapshot.Platform.Platform)</dd>
+                </div>
+                <div>
+                    <dt>Background Refresh</dt>
+                    <dd>@(_snapshot.Platform.SupportsBackgroundRefresh ? "Planned" : "Limited")</dd>
+                </div>
+                <div>
+                    <dt>Direct Time Adjustment</dt>
+                    <dd>@(_snapshot.Platform.SupportsDirectTimeAdjustment ? "Supported target" : "Guided fallback")</dd>
+                </div>
+            </dl>
+            <p class="support-copy">@_snapshot.Platform.Summary</p>
+            <p class="support-guidance">@_snapshot.Platform.Guidance</p>
+        </article>
+
+        <article class="panel">
+            <div class="panel-header">
+                <div>
+                    <h2>Last Error</h2>
+                    <p>Most recent platform or sync issue captured in the bootstrap shell.</p>
+                </div>
+            </div>
+            <p class="error-banner">@(_snapshot.LastError ?? "No errors recorded.")</p>
+        </article>
+    </section>
+
+    <section class="panel">
+        <div class="panel-header">
+            <div>
+                <h2>Individual Time Servers</h2>
+                <p>Placeholder server table modeled after the reference desktop utility.</p>
+            </div>
+        </div>
+
+        <div class="table-shell">
+            <table class="server-table">
+                <thead>
+                    <tr>
+                        <th>Server Name</th>
+                        <th>Protocol</th>
+                        <th>Status</th>
+                        <th>Offset</th>
+                        <th>Lag</th>
+                        <th>Last Error</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var server in _snapshot.Servers)
+                    {
+                        <tr>
+                            <td>@server.Name</td>
+                            <td>@FormatProtocol(server.Protocol)</td>
+                            <td>
+                                <span class="state-pill @GetStateClass(server.State)">
+                                    @FormatState(server.State)
+                                </span>
+                            </td>
+                            <td>@FormatOffset(server.Offset)</td>
+                            <td>@FormatLag(server.Lag)</td>
+                            <td>@(server.LastError ?? "-")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+}
+
+@code {
+    private DashboardSnapshot? _snapshot;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        _snapshot = await Workspace.GetDashboardAsync();
+    }
+
+    private static string FormatDate(DateTimeOffset? value) =>
+        value?.ToLocalTime().ToString("M/d/yyyy h:mm:ss tt") ?? "Never";
+
+    private static string FormatOffset(TimeSpan? value) =>
+        value is null ? "-" : $"{value.Value.TotalMilliseconds:+0.##;-0.##;0} ms";
+
+    private static string FormatLag(TimeSpan? value) =>
+        value is null ? "-" : $"{value.Value.TotalMilliseconds:0} ms";
+
+    private static string FormatCountdown(TimeSpan value) =>
+        $"{Math.Max(0, (int)value.TotalHours)}h {value.Minutes}m {value.Seconds}s";
+
+    private static string FormatProtocol(ServerProtocol protocol) => protocol switch
+    {
+        ServerProtocol.Sntp => "SNTP",
+        ServerProtocol.Rfc868Tcp => "RFC868 (TCP)",
+        ServerProtocol.Rfc868Udp => "RFC868 (UDP)",
+        _ => "Unknown"
+    };
+
+    private static string FormatState(ServerHealthState state) => state switch
+    {
+        ServerHealthState.Good => "Good",
+        ServerHealthState.NotUsed => "Not Used",
+        ServerHealthState.Warning => "Warning",
+        ServerHealthState.Error => "Error",
+        _ => "Unknown"
+    };
+
+    private static string GetStateClass(ServerHealthState state) => state switch
+    {
+        ServerHealthState.Good => "state-good",
+        ServerHealthState.NotUsed => "state-muted",
+        ServerHealthState.Warning => "state-warn",
+        ServerHealthState.Error => "state-error",
+        _ => "state-muted"
+    };
+
+    private static string FormatPlatform(AppPlatform platform) => platform switch
+    {
+        AppPlatform.Windows => "Windows",
+        AppPlatform.Android => "Android",
+        AppPlatform.Ios => "iOS",
+        _ => "Unknown"
+    };
+}
