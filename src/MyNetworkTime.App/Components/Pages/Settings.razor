@@ -1,5 +1,7 @@
 @page "/settings"
+@implements IAsyncDisposable
 @inject INetworkTimeWorkspaceService Workspace
+@inject IJSRuntime JSRuntime
 
 <PageTitle>Settings</PageTitle>
 
@@ -21,19 +23,8 @@ else
         </div>
     </section>
 
-    @if (_statusMessage is not null)
-    {
-        <p class="success-banner">@_statusMessage</p>
-    }
-
-    @if (_errorMessage is not null)
-    {
-        <p class="error-banner">@_errorMessage</p>
-    }
-
     <EditForm Model="_editor" OnValidSubmit="SaveAsync" OnInvalidSubmit="HandleInvalidSubmit">
         <DataAnnotationsValidator />
-        <ValidationSummary class="settings-validation" />
 
         <div class="settings-layout">
             <section class="panel settings-form-shell">
@@ -46,6 +37,7 @@ else
                 </div>
 
                 <div class="server-editor">
+                    <p class="server-editor-note">Press and drag a row handle to change server priority before saving.</p>
                     <div class="server-editor-head">
                         <span>#</span>
                         <span>Hostname or IP Address</span>
@@ -53,66 +45,42 @@ else
                         <span>Port</span>
                     </div>
 
-                    <div class="server-editor-row">
-                        <span class="server-slot">1</span>
-                        <InputText class="form-control nt-input" @bind-Value="_editor.Server1Host" />
-                        <InputSelect class="form-select nt-select" @bind-Value="_editor.Server1Protocol">
-                            @foreach (var protocol in ProtocolOptions)
-                            {
-                                <option value="@protocol">@FormatProtocol(protocol)</option>
-                            }
-                        </InputSelect>
-                        <InputNumber class="form-control nt-input nt-port" @bind-Value="_editor.Server1Port" />
-                    </div>
+                    @for (var index = 0; index < _editor.ServerCount; index++)
+                    {
+                        var serverIndex = index;
 
-                    <div class="server-editor-row">
-                        <span class="server-slot">2</span>
-                        <InputText class="form-control nt-input" @bind-Value="_editor.Server2Host" />
-                        <InputSelect class="form-select nt-select" @bind-Value="_editor.Server2Protocol">
-                            @foreach (var protocol in ProtocolOptions)
-                            {
-                                <option value="@protocol">@FormatProtocol(protocol)</option>
-                            }
-                        </InputSelect>
-                        <InputNumber class="form-control nt-input nt-port" @bind-Value="_editor.Server2Port" />
-                    </div>
-
-                    <div class="server-editor-row">
-                        <span class="server-slot">3</span>
-                        <InputText class="form-control nt-input" @bind-Value="_editor.Server3Host" />
-                        <InputSelect class="form-select nt-select" @bind-Value="_editor.Server3Protocol">
-                            @foreach (var protocol in ProtocolOptions)
-                            {
-                                <option value="@protocol">@FormatProtocol(protocol)</option>
-                            }
-                        </InputSelect>
-                        <InputNumber class="form-control nt-input nt-port" @bind-Value="_editor.Server3Port" />
-                    </div>
-
-                    <div class="server-editor-row">
-                        <span class="server-slot">4</span>
-                        <InputText class="form-control nt-input" @bind-Value="_editor.Server4Host" />
-                        <InputSelect class="form-select nt-select" @bind-Value="_editor.Server4Protocol">
-                            @foreach (var protocol in ProtocolOptions)
-                            {
-                                <option value="@protocol">@FormatProtocol(protocol)</option>
-                            }
-                        </InputSelect>
-                        <InputNumber class="form-control nt-input nt-port" @bind-Value="_editor.Server4Port" />
-                    </div>
-
-                    <div class="server-editor-row">
-                        <span class="server-slot">5</span>
-                        <InputText class="form-control nt-input" @bind-Value="_editor.Server5Host" />
-                        <InputSelect class="form-select nt-select" @bind-Value="_editor.Server5Protocol">
-                            @foreach (var protocol in ProtocolOptions)
-                            {
-                                <option value="@protocol">@FormatProtocol(protocol)</option>
-                            }
-                        </InputSelect>
-                        <InputNumber class="form-control nt-input nt-port" @bind-Value="_editor.Server5Port" />
-                    </div>
+                        <div class="@GetServerRowClass(serverIndex)" data-server-index="@serverIndex">
+                            <div class="server-order-token">
+                                <span class="server-slot">@(serverIndex + 1)</span>
+                                <span class="server-drag-handle"
+                                      onpointerdown="window.myNetworkTimeSettings.beginPointerDrag(event, this)"
+                                      title="Drag to reorder"
+                                      role="button"
+                                      tabindex="0">Drag</span>
+                            </div>
+                            <InputText class="form-control nt-input"
+                                       Value="@GetServerHost(serverIndex)"
+                                       ValueChanged="@((string value) => SetServerHost(serverIndex, value))"
+                                       ValueExpression="@GetServerHostExpression(serverIndex)" />
+                            <InputSelect class="form-select nt-select"
+                                         Value="@GetServerProtocol(serverIndex)"
+                                         ValueChanged="@((ServerProtocol value) => SetServerProtocol(serverIndex, value))"
+                                         ValueExpression="@GetServerProtocolExpression(serverIndex)">
+                                @foreach (var protocol in ProtocolOptions)
+                                {
+                                    <option value="@protocol">@FormatProtocol(protocol)</option>
+                                }
+                            </InputSelect>
+                            <InputNumber class="form-control nt-input nt-port"
+                                         Value="@GetServerPort(serverIndex)"
+                                         ValueChanged="@((int value) => SetServerPort(serverIndex, value))"
+                                         ValueExpression="@GetServerPortExpression(serverIndex)" />
+                        </div>
+                    }
                 </div>
+
+
+                <ValidationSummary class="settings-validation" />
             </section>
 
             <section class="panel settings-form-shell">
@@ -264,7 +232,15 @@ else
                 </div>
             </section>
         </div>
+        @if (_statusMessage is not null)
+        {
+            <p class="success-banner">@_statusMessage</p>
+        }
 
+        @if (_errorMessage is not null)
+        {
+            <p class="error-banner">@_errorMessage</p>
+        }
         <div class="form-actions">
             <button type="submit" class="btn btn-primary action-button" disabled="@_isSaving">
                 @(_isSaving ? "Saving..." : "Save Settings")
@@ -285,16 +261,31 @@ else
     ];
     private static readonly IntervalUnit[] ThresholdIntervalOptions = Enum.GetValues<IntervalUnit>();
     private static readonly TimeAdjustmentMode[] AdjustmentModes = Enum.GetValues<TimeAdjustmentMode>();
+    private const string ServerOrderUpdatedMessage = "Server order updated. Save settings to persist the new priority.";
     private static readonly string[] LoggingLevels = ["Minimal", "Normal", "Verbose"];
 
     private SettingsEditorModel? _editor;
     private bool _isSaving;
     private string? _statusMessage;
     private string? _errorMessage;
+    private int? _draggedServerIndex;
+    private int? _dropTargetServerIndex;
+    private DotNetObjectReference<Settings>? _dotNetReference;
 
     protected override async Task OnInitializedAsync()
     {
         await LoadStoredAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        _dotNetReference = DotNetObjectReference.Create(this);
+        await JSRuntime.InvokeVoidAsync("myNetworkTimeSettings.initialize", _dotNetReference);
     }
 
     private async Task LoadStoredAsync()
@@ -351,6 +342,147 @@ else
         _errorMessage = "Review the validation messages and correct the settings before saving.";
     }
 
+    private void StartServerDrag(int index)
+    {
+        _draggedServerIndex = index;
+        _dropTargetServerIndex = index;
+        _statusMessage = null;
+        _errorMessage = null;
+    }
+
+    private void SetDropTarget(int index)
+    {
+        if (_draggedServerIndex is null)
+        {
+            return;
+        }
+
+        _dropTargetServerIndex = index;
+    }
+
+    private void ClearDropTarget(int index)
+    {
+        if (_dropTargetServerIndex == index && _draggedServerIndex != index)
+        {
+            _dropTargetServerIndex = null;
+        }
+    }
+
+    private void CompleteServerDrop(int index)
+    {
+        if (_editor is null || _draggedServerIndex is null)
+        {
+            return;
+        }
+
+        var sourceIndex = _draggedServerIndex.Value;
+        if (sourceIndex != index)
+        {
+            _editor.MoveServer(sourceIndex, index);
+            _statusMessage = ServerOrderUpdatedMessage;
+            _errorMessage = null;
+        }
+
+        ClearServerDrag();
+    }
+
+    private void ClearServerDrag()
+    {
+        _draggedServerIndex = null;
+        _dropTargetServerIndex = null;
+    }
+
+    /// <summary>Starts the WebView-safe server reorder gesture from JavaScript.</summary>
+    [JSInvokable]
+    public Task StartServerDragFromJsAsync(int index)
+    {
+        StartServerDrag(index);
+        return InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>Updates the current drop target for the WebView-safe server reorder gesture.</summary>
+    [JSInvokable]
+    public Task SetDropTargetFromJsAsync(int index)
+    {
+        SetDropTarget(index);
+        return InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>Completes the WebView-safe server reorder gesture.</summary>
+    [JSInvokable]
+    public Task CompleteServerDropFromJsAsync(int index)
+    {
+        CompleteServerDrop(index);
+        return InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>Cancels the WebView-safe server reorder gesture.</summary>
+    [JSInvokable]
+    public Task ClearServerDragFromJsAsync()
+    {
+        ClearServerDrag();
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private string GetServerRowClass(int index)
+    {
+        var classes = new List<string> { "server-editor-row" };
+
+        if (_draggedServerIndex == index)
+        {
+            classes.Add("server-editor-row-dragging");
+        }
+
+        if (_dropTargetServerIndex == index && _draggedServerIndex != index)
+        {
+            classes.Add("server-editor-row-drop-target");
+        }
+
+        return string.Join(" ", classes);
+    }
+
+    private string GetServerHost(int index) => _editor?.GetServerHost(index) ?? string.Empty;
+
+    private void SetServerHost(int index, string? value) => _editor?.SetServerHost(index, value ?? string.Empty);
+
+    private ServerProtocol GetServerProtocol(int index) => _editor?.GetServerProtocol(index) ?? ServerProtocol.Sntp;
+
+    private void SetServerProtocol(int index, ServerProtocol value) => _editor?.SetServerProtocol(index, value);
+
+    private int GetServerPort(int index) => _editor?.GetServerPort(index) ?? 123;
+
+    private void SetServerPort(int index, int value) => _editor?.SetServerPort(index, value);
+
+    private System.Linq.Expressions.Expression<Func<string>> GetServerHostExpression(int index) => index switch
+    {
+        0 => () => _editor!.Server1Host,
+        1 => () => _editor!.Server2Host,
+        2 => () => _editor!.Server3Host,
+        3 => () => _editor!.Server4Host,
+        4 => () => _editor!.Server5Host,
+        _ => throw new ArgumentOutOfRangeException(nameof(index))
+    };
+
+    private System.Linq.Expressions.Expression<Func<ServerProtocol>> GetServerProtocolExpression(int index) => index switch
+    {
+        0 => () => _editor!.Server1Protocol,
+        1 => () => _editor!.Server2Protocol,
+        2 => () => _editor!.Server3Protocol,
+        3 => () => _editor!.Server4Protocol,
+        4 => () => _editor!.Server5Protocol,
+        _ => throw new ArgumentOutOfRangeException(nameof(index))
+    };
+
+    private System.Linq.Expressions.Expression<Func<int>> GetServerPortExpression(int index) => index switch
+    {
+        0 => () => _editor!.Server1Port,
+        1 => () => _editor!.Server2Port,
+        2 => () => _editor!.Server3Port,
+        3 => () => _editor!.Server4Port,
+        4 => () => _editor!.Server5Port,
+        _ => throw new ArgumentOutOfRangeException(nameof(index))
+    };
+
     private static string FormatProtocol(ServerProtocol protocol) => protocol switch
     {
         ServerProtocol.Sntp => "SNTP",
@@ -377,4 +509,17 @@ else
         IntervalUnit.Year => "years",
         _ => "units"
     };
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("myNetworkTimeSettings.dispose");
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+
+        _dotNetReference?.Dispose();
+    }
 }

@@ -8,6 +8,7 @@ namespace MyNetworkTime.App.Services;
 internal sealed class AppLifecycleSyncService(
     ISyncStateRepository syncStateRepository,
     SyncCoordinator syncCoordinator,
+    DashboardRefreshNotifier dashboardRefreshNotifier,
     TimeProvider timeProvider,
     ILogger<AppLifecycleSyncService> logger) : IAppLifecycleSyncService
 {
@@ -53,21 +54,30 @@ internal sealed class AppLifecycleSyncService(
 
         try
         {
+            var refreshed = false;
             var state = await syncStateRepository.GetAsync(cancellationToken);
             if (state is null || state.LastAttemptUtc is null)
             {
                 await syncCoordinator.RefreshAsync(SyncTrigger.InitialStartup, cancellationToken);
-                return;
+                refreshed = true;
+            }
+            else
+            {
+                var now = timeProvider.GetUtcNow();
+                if (state.NextAttemptUtc is null || state.NextAttemptUtc <= now)
+                {
+                    var trigger = state.SummaryStatus.Contains("failed", StringComparison.OrdinalIgnoreCase)
+                        ? SyncTrigger.Retry
+                        : SyncTrigger.BackgroundRefresh;
+
+                    await syncCoordinator.RefreshAsync(trigger, cancellationToken);
+                    refreshed = true;
+                }
             }
 
-            var now = timeProvider.GetUtcNow();
-            if (state.NextAttemptUtc is null || state.NextAttemptUtc <= now)
+            if (refreshed)
             {
-                var trigger = state.SummaryStatus.Contains("failed", StringComparison.OrdinalIgnoreCase)
-                    ? SyncTrigger.Retry
-                    : SyncTrigger.BackgroundRefresh;
-
-                await syncCoordinator.RefreshAsync(trigger, cancellationToken);
+                await dashboardRefreshNotifier.NotifyAsync();
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
