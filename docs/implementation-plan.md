@@ -174,6 +174,7 @@ Branch:
 
 Deliverables:
 
+- Interactive dashboard refresh for `Current Status` and `Individual Time Servers` without requiring manual page reload
 - Final cleanup and documentation
 - App icons and basic branding
 - Build verification checklist for Windows, Android, and iOS
@@ -182,6 +183,7 @@ Deliverables:
 Exit criteria:
 
 - Solution builds cleanly
+- Dashboard status blocks refresh interactively after sync and scheduled updates
 - README and test/run instructions are complete
 
 ## Branching and merge workflow
