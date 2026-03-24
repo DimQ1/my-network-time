@@ -13,7 +13,12 @@ else
         <div>
             <p class="eyebrow">Logs</p>
             <h1>Sync History</h1>
-            <p class="page-lede">A lightweight log viewer is already wired so the real sync engine can drop into place in the next stages.</p>
+            <p class="page-lede">A dedicated log viewer for sync events, failures, and manual updates, styled after the reference utility but tuned for desktop and mobile.</p>
+        </div>
+        <div class="hero-actions">
+            <button type="button" class="btn btn-light action-button" disabled="@_isRefreshing" @onclick="LoadAsync">
+                @(_isRefreshing ? "Refreshing..." : "Refresh Log")
+            </button>
         </div>
     </section>
 
@@ -31,7 +36,12 @@ else
         }
         else
         {
-            <div class="log-viewer">
+            <div class="log-console-head">
+                <span>Timestamp</span>
+                <span>Message</span>
+                <span>Context</span>
+            </div>
+            <div class="log-viewer log-console">
                 @foreach (var entry in _logs)
                 {
                     <div class="log-line">
@@ -47,9 +57,23 @@ else
 
 @code {
     private IReadOnlyList<LogEntrySnapshot>? _logs;
+    private bool _isRefreshing;
 
     protected override async Task OnInitializedAsync()
     {
-        _logs = await Workspace.GetLogsAsync();
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _isRefreshing = true;
+        try
+        {
+            _logs = await Workspace.GetLogsAsync();
+        }
+        finally
+        {
+            _isRefreshing = false;
+        }
     }
 }

@@ -13,7 +13,7 @@ else
         <div>
             <p class="eyebrow">Dashboard</p>
             <h1>Network Time Status</h1>
-            <p class="page-lede">The shell is now backed by real sync orchestration, persisted settings, and protocol clients for SNTP and RFC868.</p>
+            <p class="page-lede">A utility-first dashboard inspired by the original desktop tool, now backed by real sync orchestration and persisted state.</p>
         </div>
         <div class="hero-actions">
             <button type="button" class="btn btn-primary action-button" disabled="@_isRefreshing" @onclick="ReloadAsync">
@@ -23,73 +23,94 @@ else
         </div>
     </section>
 
-    <section class="stat-grid">
-        <article class="metric-card">
-            <span class="metric-label">Time</span>
-            <strong>@FormatDate(_snapshot.CurrentTime)</strong>
-        </article>
-        <article class="metric-card">
-            <span class="metric-label">Last Attempt</span>
-            <strong>@FormatDate(_snapshot.LastAttempt)</strong>
-        </article>
-        <article class="metric-card">
-            <span class="metric-label">Last Sync</span>
-            <strong>@FormatDate(_snapshot.LastSync)</strong>
-            <span class="metric-footnote">@FormatOffset(_snapshot.LastSyncOffset)</span>
-        </article>
-        <article class="metric-card">
-            <span class="metric-label">Next Attempt</span>
-            <strong>@FormatCountdown(_snapshot.NextAttemptIn)</strong>
-        </article>
-    </section>
+    @if (_errorMessage is not null)
+    {
+        <p class="error-banner">@_errorMessage</p>
+    }
 
-    <section class="panel-grid">
-        <article class="panel panel-emphasis">
+    <section class="dashboard-layout">
+        <article class="panel dashboard-primary">
             <div class="panel-header">
                 <div>
                     <h2>Current Status</h2>
-                    <p>@_snapshot.SummaryStatus</p>
+                    <p>Summary information aligned with the classic NetTime monitor.</p>
                 </div>
                 <span class="support-pill">@_snapshot.Platform.SupportLevel</span>
             </div>
-            <dl class="detail-grid">
-                <div>
-                    <dt>Mode</dt>
-                    <dd>@_snapshot.ModeLabel</dd>
-                </div>
-                <div>
-                    <dt>Platform</dt>
-                    <dd>@FormatPlatform(_snapshot.Platform.Platform)</dd>
-                </div>
-                <div>
-                    <dt>Background Refresh</dt>
-                    <dd>@(_snapshot.Platform.SupportsBackgroundRefresh ? "Planned" : "Limited")</dd>
-                </div>
-                <div>
-                    <dt>Direct Time Adjustment</dt>
-                    <dd>@(_snapshot.Platform.SupportsDirectTimeAdjustment ? "Supported target" : "Guided fallback")</dd>
-                </div>
-            </dl>
-            <p class="support-copy">@_snapshot.Platform.Summary</p>
-            <p class="support-guidance">@_snapshot.Platform.Guidance</p>
-        </article>
 
-        <article class="panel">
-            <div class="panel-header">
-                <div>
-                    <h2>Last Error</h2>
-                    <p>Most recent platform or sync issue captured in the bootstrap shell.</p>
+            <div class="fact-list">
+                <div class="fact-row">
+                    <span class="fact-label">Time</span>
+                    <strong class="fact-value">@FormatDate(_snapshot.CurrentTime)</strong>
+                </div>
+                <div class="fact-row">
+                    <span class="fact-label">Last Attempt</span>
+                    <strong class="fact-value">@FormatDate(_snapshot.LastAttempt)</strong>
+                </div>
+                <div class="fact-row">
+                    <span class="fact-label">Last Sync</span>
+                    <strong class="fact-value">@FormatDate(_snapshot.LastSync)</strong>
+                </div>
+                <div class="fact-row">
+                    <span class="fact-label">Sync Offset</span>
+                    <strong class="fact-value">@FormatOffset(_snapshot.LastSyncOffset)</strong>
+                </div>
+                <div class="fact-row">
+                    <span class="fact-label">Next Attempt</span>
+                    <strong class="fact-value">@FormatCountdown(_snapshot.NextAttemptIn)</strong>
+                </div>
+                <div class="fact-row">
+                    <span class="fact-label">Mode</span>
+                    <strong class="fact-value">@_snapshot.ModeLabel</strong>
                 </div>
             </div>
-            <p class="error-banner">@(_snapshot.LastError ?? "No errors recorded.")</p>
+
+            <p class="sync-banner @GetSummaryClass(_snapshot)">@_snapshot.SummaryStatus</p>
+
+            <div class="status-chip-grid">
+                <div class="status-chip">
+                    <span class="status-chip-label">Platform</span>
+                    <strong class="status-chip-value">@FormatPlatform(_snapshot.Platform.Platform)</strong>
+                </div>
+                <div class="status-chip">
+                    <span class="status-chip-label">Background Refresh</span>
+                    <strong class="status-chip-value">@(_snapshot.Platform.SupportsBackgroundRefresh ? "Planned" : "Limited")</strong>
+                </div>
+                <div class="status-chip">
+                    <span class="status-chip-label">Direct Time Adjustment</span>
+                    <strong class="status-chip-value">@(_snapshot.Platform.SupportsDirectTimeAdjustment ? "Supported target" : "Guided fallback")</strong>
+                </div>
+            </div>
         </article>
+
+        <div class="side-stack">
+            <article class="panel panel-emphasis">
+                <div class="panel-header">
+                    <div>
+                        <h2>Platform Notes</h2>
+                        <p>@_snapshot.Platform.Summary</p>
+                    </div>
+                </div>
+                <p class="support-guidance">@_snapshot.Platform.Guidance</p>
+            </article>
+
+            <article class="panel">
+                <div class="panel-header">
+                    <div>
+                        <h2>Last Error</h2>
+                        <p>Latest sync or capability issue kept in local state.</p>
+                    </div>
+                </div>
+                <p class="error-banner">@(_snapshot.LastError ?? "No errors recorded.")</p>
+            </article>
+        </div>
     </section>
 
     <section class="panel">
         <div class="panel-header">
             <div>
                 <h2>Individual Time Servers</h2>
-                <p>Placeholder server table modeled after the reference desktop utility.</p>
+                <p>Each row reflects the latest persisted server state from the sync coordinator.</p>
             </div>
         </div>
 
@@ -130,10 +151,11 @@ else
 @code {
     private DashboardSnapshot? _snapshot;
     private bool _isRefreshing;
+    private string? _errorMessage;
 
     protected override async Task OnInitializedAsync()
     {
-        _snapshot = await Workspace.GetDashboardAsync();
+        await LoadSnapshotAsync();
     }
 
     private async Task ReloadAsync()
@@ -142,10 +164,28 @@ else
         try
         {
             _snapshot = await Workspace.RefreshAsync(SyncTrigger.ManualUpdate);
+            _errorMessage = null;
+        }
+        catch (Exception exception)
+        {
+            _errorMessage = $"Sync failed unexpectedly: {exception.Message}";
         }
         finally
         {
             _isRefreshing = false;
+        }
+    }
+
+    private async Task LoadSnapshotAsync()
+    {
+        try
+        {
+            _snapshot = await Workspace.GetDashboardAsync();
+            _errorMessage = null;
+        }
+        catch (Exception exception)
+        {
+            _errorMessage = $"Unable to load dashboard: {exception.Message}";
         }
     }
 
@@ -194,4 +234,19 @@ else
         AppPlatform.Ios => "iOS",
         _ => "Unknown"
     };
+
+    private static string GetSummaryClass(DashboardSnapshot snapshot)
+    {
+        if (snapshot.SummaryStatus.Contains("failed", StringComparison.OrdinalIgnoreCase))
+        {
+            return "sync-banner-error";
+        }
+
+        if (snapshot.LastSync is null)
+        {
+            return "sync-banner-muted";
+        }
+
+        return "sync-banner-good";
+    }
 }

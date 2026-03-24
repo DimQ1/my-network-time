@@ -3,9 +3,9 @@
 
 <PageTitle>Settings</PageTitle>
 
-@if (_settings is null)
+@if (_editor is null)
 {
-    <p class="loading-state">Loading placeholder settings...</p>
+    <p class="loading-state">Loading settings from local storage...</p>
 }
 else
 {
@@ -13,122 +13,342 @@ else
         <div>
             <p class="eyebrow">Settings</p>
             <h1>Sync Preferences</h1>
-            <p class="page-lede">Persistence is now wired in the core layer. The dedicated UI stage will make these values fully editable from the app.</p>
+            <p class="page-lede">This editor persists real settings through the JSON repositories from the core layer and mirrors the structure of the original NetTime options screen.</p>
+        </div>
+        <div class="hero-actions">
+            <button type="button" class="btn btn-light action-button" @onclick="LoadStoredAsync">Reload Stored</button>
+            <button type="button" class="btn btn-light action-button" @onclick="LoadDefaults">Use Defaults</button>
         </div>
     </section>
 
-    <section class="panel">
-        <div class="panel-header">
-            <div>
-                <h2>Time Servers</h2>
-                <p>Server roster prepared for SNTP and RFC868 support.</p>
-            </div>
-            <span class="support-pill">Editable in Stage 3</span>
+    @if (_statusMessage is not null)
+    {
+        <p class="success-banner">@_statusMessage</p>
+    }
+
+    @if (_errorMessage is not null)
+    {
+        <p class="error-banner">@_errorMessage</p>
+    }
+
+    <EditForm Model="_editor" OnValidSubmit="SaveAsync" OnInvalidSubmit="HandleInvalidSubmit">
+        <DataAnnotationsValidator />
+        <ValidationSummary class="settings-validation" />
+
+        <div class="settings-layout">
+            <section class="panel settings-form-shell">
+                <div class="panel-header">
+                    <div>
+                        <h2>Time Servers</h2>
+                        <p>Up to five entries, matching the original utility layout.</p>
+                    </div>
+                    <span class="support-pill">Live persistence</span>
+                </div>
+
+                <div class="server-editor">
+                    <div class="server-editor-head">
+                        <span>#</span>
+                        <span>Hostname or IP Address</span>
+                        <span>Protocol</span>
+                        <span>Port</span>
+                    </div>
+
+                    <div class="server-editor-row">
+                        <span class="server-slot">1</span>
+                        <InputText class="form-control nt-input" @bind-Value="_editor.Server1Host" />
+                        <InputSelect class="form-select nt-select" @bind-Value="_editor.Server1Protocol">
+                            @foreach (var protocol in ProtocolOptions)
+                            {
+                                <option value="@protocol">@FormatProtocol(protocol)</option>
+                            }
+                        </InputSelect>
+                        <InputNumber class="form-control nt-input nt-port" @bind-Value="_editor.Server1Port" />
+                    </div>
+
+                    <div class="server-editor-row">
+                        <span class="server-slot">2</span>
+                        <InputText class="form-control nt-input" @bind-Value="_editor.Server2Host" />
+                        <InputSelect class="form-select nt-select" @bind-Value="_editor.Server2Protocol">
+                            @foreach (var protocol in ProtocolOptions)
+                            {
+                                <option value="@protocol">@FormatProtocol(protocol)</option>
+                            }
+                        </InputSelect>
+                        <InputNumber class="form-control nt-input nt-port" @bind-Value="_editor.Server2Port" />
+                    </div>
+
+                    <div class="server-editor-row">
+                        <span class="server-slot">3</span>
+                        <InputText class="form-control nt-input" @bind-Value="_editor.Server3Host" />
+                        <InputSelect class="form-select nt-select" @bind-Value="_editor.Server3Protocol">
+                            @foreach (var protocol in ProtocolOptions)
+                            {
+                                <option value="@protocol">@FormatProtocol(protocol)</option>
+                            }
+                        </InputSelect>
+                        <InputNumber class="form-control nt-input nt-port" @bind-Value="_editor.Server3Port" />
+                    </div>
+
+                    <div class="server-editor-row">
+                        <span class="server-slot">4</span>
+                        <InputText class="form-control nt-input" @bind-Value="_editor.Server4Host" />
+                        <InputSelect class="form-select nt-select" @bind-Value="_editor.Server4Protocol">
+                            @foreach (var protocol in ProtocolOptions)
+                            {
+                                <option value="@protocol">@FormatProtocol(protocol)</option>
+                            }
+                        </InputSelect>
+                        <InputNumber class="form-control nt-input nt-port" @bind-Value="_editor.Server4Port" />
+                    </div>
+
+                    <div class="server-editor-row">
+                        <span class="server-slot">5</span>
+                        <InputText class="form-control nt-input" @bind-Value="_editor.Server5Host" />
+                        <InputSelect class="form-select nt-select" @bind-Value="_editor.Server5Protocol">
+                            @foreach (var protocol in ProtocolOptions)
+                            {
+                                <option value="@protocol">@FormatProtocol(protocol)</option>
+                            }
+                        </InputSelect>
+                        <InputNumber class="form-control nt-input nt-port" @bind-Value="_editor.Server5Port" />
+                    </div>
+                </div>
+            </section>
+
+            <section class="panel settings-form-shell">
+                <div class="panel-header">
+                    <div>
+                        <h2>Intervals</h2>
+                        <p>Update cadence, retries, and adjustment thresholds.</p>
+                    </div>
+                </div>
+
+                <div class="editor-grid">
+                    <div class="editor-field">
+                        <label>Update Interval</label>
+                        <div class="split-field">
+                            <InputNumber class="form-control nt-input" @bind-Value="_editor.UpdateIntervalValue" />
+                            <InputSelect class="form-select nt-select" @bind-Value="_editor.UpdateIntervalUnit">
+                                @foreach (var unit in BasicIntervalOptions)
+                                {
+                                    <option value="@unit">@FormatIntervalUnit(unit)</option>
+                                }
+                            </InputSelect>
+                        </div>
+                    </div>
+
+                    <div class="editor-field">
+                        <label>Retry Interval</label>
+                        <div class="split-field">
+                            <InputNumber class="form-control nt-input" @bind-Value="_editor.RetryIntervalValue" />
+                            <InputSelect class="form-select nt-select" @bind-Value="_editor.RetryIntervalUnit">
+                                @foreach (var unit in BasicIntervalOptions)
+                                {
+                                    <option value="@unit">@FormatIntervalUnit(unit)</option>
+                                }
+                            </InputSelect>
+                        </div>
+                    </div>
+
+                    <div class="editor-field">
+                        <label>Max Free Run</label>
+                        <div class="split-field">
+                            <InputNumber class="form-control nt-input" @bind-Value="_editor.MaxFreeRunValue" />
+                            <InputSelect class="form-select nt-select" @bind-Value="_editor.MaxFreeRunUnit">
+                                @foreach (var unit in BasicIntervalOptions)
+                                {
+                                    <option value="@unit">@FormatIntervalUnit(unit)</option>
+                                }
+                            </InputSelect>
+                        </div>
+                    </div>
+
+                    <div class="editor-field">
+                        <label>Adjustment Threshold</label>
+                        <div class="split-field">
+                            <InputNumber class="form-control nt-input" @bind-Value="_editor.AdjustmentThresholdValue" />
+                            <InputSelect class="form-select nt-select" @bind-Value="_editor.AdjustmentThresholdUnit">
+                                @foreach (var unit in ThresholdIntervalOptions)
+                                {
+                                    <option value="@unit">@FormatIntervalUnit(unit)</option>
+                                }
+                            </InputSelect>
+                        </div>
+                    </div>
+
+                    <div class="editor-field">
+                        <label>Adjustment Mode</label>
+                        <InputSelect class="form-select nt-select" @bind-Value="_editor.AdjustmentMode">
+                            @foreach (var mode in AdjustmentModes)
+                            {
+                                <option value="@mode">@FormatAdjustmentMode(mode)</option>
+                            }
+                        </InputSelect>
+                    </div>
+
+                    <div class="editor-field">
+                        <label>Logging Level</label>
+                        <InputSelect class="form-select nt-select" @bind-Value="_editor.LoggingLevel">
+                            @foreach (var level in LoggingLevels)
+                            {
+                                <option value="@level">@level</option>
+                            }
+                        </InputSelect>
+                    </div>
+                </div>
+            </section>
+
+            <section class="panel settings-form-shell">
+                <div class="panel-header">
+                    <div>
+                        <h2>Behavior</h2>
+                        <p>Operational toggles and update policies.</p>
+                    </div>
+                </div>
+
+                <div class="toggle-grid">
+                    <label class="toggle-field">
+                        <InputCheckbox class="form-check-input" @bind-Value="_editor.DemoteServers" />
+                        <span class="toggle-copy">
+                            <strong>Demote Servers</strong>
+                            <span>After repeated failures the server is moved behind healthier entries.</span>
+                        </span>
+                    </label>
+
+                    <label class="toggle-field">
+                        <InputCheckbox class="form-check-input" @bind-Value="_editor.AllowPeersToSync" />
+                        <span class="toggle-copy">
+                            <strong>Allow Peer Sync</strong>
+                            <span>Permit other machines to sync against this device when the platform allows it.</span>
+                        </span>
+                    </label>
+
+                    <label class="toggle-field">
+                        <InputCheckbox class="form-check-input" @bind-Value="_editor.AlwaysProvideTime" />
+                        <span class="toggle-copy">
+                            <strong>Always Provide Time</strong>
+                            <span>Keep serving time even when local drift is outside the recommended window.</span>
+                        </span>
+                    </label>
+
+                    <label class="toggle-field">
+                        <InputCheckbox class="form-check-input" @bind-Value="_editor.ShowTrayIconAtLogin" />
+                        <span class="toggle-copy">
+                            <strong>Show Tray Icon at Login</strong>
+                            <span>Preserves the desktop-oriented utility behavior where applicable.</span>
+                        </span>
+                    </label>
+
+                    <label class="toggle-field">
+                        <InputCheckbox class="form-check-input" @bind-Value="_editor.StartAtBoot" />
+                        <span class="toggle-copy">
+                            <strong>Start at Boot</strong>
+                            <span>Boot-time activation is subject to platform capabilities and will be finalized later.</span>
+                        </span>
+                    </label>
+                </div>
+
+                <div class="editor-grid secondary-editor-grid">
+                    <div class="editor-field">
+                        <label>Demote After Failures</label>
+                        <InputNumber class="form-control nt-input" @bind-Value="_editor.DemoteAfterFailures" />
+                    </div>
+
+                    <div class="editor-field">
+                        <label>Auto Check for Updates</label>
+                        <div class="split-field">
+                            <InputNumber class="form-control nt-input" @bind-Value="_editor.AutoCheckEveryDays" />
+                            <span class="static-token">days</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
         </div>
 
-        <div class="table-shell">
-            <table class="server-table">
-                <thead>
-                    <tr>
-                        <th>Hostname or IP Address</th>
-                        <th>Protocol</th>
-                        <th>Port</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var server in _settings.Servers)
-                    {
-                        <tr>
-                            <td>@server.Host</td>
-                            <td>@FormatProtocol(server.Protocol)</td>
-                            <td>@server.Port</td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary action-button" disabled="@_isSaving">
+                @(_isSaving ? "Saving..." : "Save Settings")
+            </button>
+            <span class="form-note">Changes are written to local JSON storage and will be picked up by the sync engine on the next refresh.</span>
         </div>
-    </section>
-
-    <section class="panel-grid">
-        <article class="panel">
-            <div class="panel-header">
-                <div>
-                    <h2>Intervals</h2>
-                    <p>Bootstrap values mirror the legacy utility.</p>
-                </div>
-            </div>
-            <div class="field-grid">
-                <div class="field-card">
-                    <span class="field-label">Update Interval</span>
-                    <strong class="field-value">@_settings.UpdateInterval</strong>
-                </div>
-                <div class="field-card">
-                    <span class="field-label">Retry Interval</span>
-                    <strong class="field-value">@_settings.RetryInterval</strong>
-                </div>
-                <div class="field-card">
-                    <span class="field-label">Max Free Run</span>
-                    <strong class="field-value">@_settings.MaxFreeRun</strong>
-                </div>
-                <div class="field-card">
-                    <span class="field-label">Adjustment Threshold</span>
-                    <strong class="field-value">@_settings.AdjustmentThreshold</strong>
-                </div>
-            </div>
-        </article>
-
-        <article class="panel">
-            <div class="panel-header">
-                <div>
-                    <h2>Behavior</h2>
-                    <p>Stage 1 keeps these values read-only while the workflow is scaffolded.</p>
-                </div>
-            </div>
-            <div class="field-grid">
-                <div class="field-card">
-                    <span class="field-label">Demote Servers</span>
-                    <strong class="field-value">@FormatBoolean(_settings.DemoteServers)</strong>
-                    <span class="metric-footnote">After @_settings.DemoteAfterFailures failures</span>
-                </div>
-                <div class="field-card">
-                    <span class="field-label">Adjustment Mode</span>
-                    <strong class="field-value">@FormatAdjustmentMode(_settings.AdjustmentMode)</strong>
-                </div>
-                <div class="field-card">
-                    <span class="field-label">Allow Peer Sync</span>
-                    <strong class="field-value">@FormatBoolean(_settings.AllowPeersToSync)</strong>
-                </div>
-                <div class="field-card">
-                    <span class="field-label">Always Provide Time</span>
-                    <strong class="field-value">@FormatBoolean(_settings.AlwaysProvideTime)</strong>
-                </div>
-                <div class="field-card">
-                    <span class="field-label">Tray Icon at Login</span>
-                    <strong class="field-value">@FormatBoolean(_settings.ShowTrayIconAtLogin)</strong>
-                </div>
-                <div class="field-card">
-                    <span class="field-label">Start at Boot</span>
-                    <strong class="field-value">@FormatBoolean(_settings.StartAtBoot)</strong>
-                </div>
-                <div class="field-card">
-                    <span class="field-label">Auto Check for Updates</span>
-                    <strong class="field-value">Every @_settings.AutoCheckEveryDays day(s)</strong>
-                </div>
-                <div class="field-card">
-                    <span class="field-label">Logging Level</span>
-                    <strong class="field-value">@_settings.LoggingLevel</strong>
-                </div>
-            </div>
-        </article>
-    </section>
+    </EditForm>
 }
 
 @code {
-    private AppSettingsSnapshot? _settings;
+    private static readonly ServerProtocol[] ProtocolOptions = Enum.GetValues<ServerProtocol>();
+    private static readonly IntervalUnit[] BasicIntervalOptions =
+    [
+        IntervalUnit.Second,
+        IntervalUnit.Minute,
+        IntervalUnit.Hour,
+        IntervalUnit.Day
+    ];
+    private static readonly IntervalUnit[] ThresholdIntervalOptions = Enum.GetValues<IntervalUnit>();
+    private static readonly TimeAdjustmentMode[] AdjustmentModes = Enum.GetValues<TimeAdjustmentMode>();
+    private static readonly string[] LoggingLevels = ["Minimal", "Normal", "Verbose"];
+
+    private SettingsEditorModel? _editor;
+    private bool _isSaving;
+    private string? _statusMessage;
+    private string? _errorMessage;
 
     protected override async Task OnInitializedAsync()
     {
-        _settings = await Workspace.GetSettingsAsync();
+        await LoadStoredAsync();
+    }
+
+    private async Task LoadStoredAsync()
+    {
+        try
+        {
+            var settings = await Workspace.GetSettingsAsync();
+            _editor = SettingsEditorModel.FromSnapshot(settings);
+            _statusMessage = "Settings loaded from local storage.";
+            _errorMessage = null;
+        }
+        catch (Exception exception)
+        {
+            _errorMessage = $"Failed to load settings: {exception.Message}";
+        }
+    }
+
+    private void LoadDefaults()
+    {
+        _editor = SettingsEditorModel.FromSnapshot(AppSettingsDefaults.Create());
+        _statusMessage = "Default values loaded. Save to persist them.";
+        _errorMessage = null;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_editor is null)
+        {
+            return;
+        }
+
+        _isSaving = true;
+        try
+        {
+            await Workspace.SaveSettingsAsync(_editor.ToSnapshot());
+            _statusMessage = $"Settings saved at {DateTime.Now:t}.";
+            _errorMessage = null;
+            await LoadStoredAsync();
+        }
+        catch (Exception exception)
+        {
+            _errorMessage = $"Failed to save settings: {exception.Message}";
+            _statusMessage = null;
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private void HandleInvalidSubmit(EditContext _)
+    {
+        _statusMessage = null;
+        _errorMessage = "Review the validation messages and correct the settings before saving.";
     }
 
     private static string FormatProtocol(ServerProtocol protocol) => protocol switch
@@ -147,5 +367,14 @@ else
         _ => "Unknown"
     };
 
-    private static string FormatBoolean(bool value) => value ? "Enabled" : "Disabled";
+    private static string FormatIntervalUnit(IntervalUnit unit) => unit switch
+    {
+        IntervalUnit.Second => "seconds",
+        IntervalUnit.Minute => "minutes",
+        IntervalUnit.Hour => "hours",
+        IntervalUnit.Day => "days",
+        IntervalUnit.Week => "weeks",
+        IntervalUnit.Year => "years",
+        _ => "units"
+    };
 }
