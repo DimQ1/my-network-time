@@ -1,5 +1,6 @@
 using MyNetworkTime.Core.Dashboard;
 using MyNetworkTime.Core.Logs;
+using MyNetworkTime.Core.Platforms;
 using MyNetworkTime.Core.Settings;
 using MyNetworkTime.Core.Sync;
 
@@ -16,4 +17,8 @@ public interface INetworkTimeWorkspaceService
     ValueTask SaveSettingsAsync(AppSettingsSnapshot settings, CancellationToken cancellationToken = default);
 
     ValueTask<IReadOnlyList<LogEntrySnapshot>> GetLogsAsync(CancellationToken cancellationToken = default);
+
+    ValueTask<TimeAdjustmentResult> AdjustSystemTimeAsync(CancellationToken cancellationToken = default);
+
+    ValueTask<PlatformActionResult> OpenSystemTimeSettingsAsync(CancellationToken cancellationToken = default);
 }

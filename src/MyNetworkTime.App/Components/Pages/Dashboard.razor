@@ -13,15 +13,32 @@ else
         <div>
             <p class="eyebrow">Dashboard</p>
             <h1>Network Time Status</h1>
-            <p class="page-lede">A utility-first dashboard inspired by the original desktop tool, now backed by real sync orchestration and persisted state.</p>
+            <p class="page-lede">A utility-first dashboard inspired by the original desktop tool, now backed by real sync orchestration, platform-aware actions, and scheduled refresh while the app is active.</p>
         </div>
         <div class="hero-actions">
             <button type="button" class="btn btn-primary action-button" disabled="@_isRefreshing" @onclick="ReloadAsync">
                 @(_isRefreshing ? "Syncing..." : "Update Now")
             </button>
+            @if (_snapshot.CanAdjustSystemTimeFromDashboard)
+            {
+                <button type="button" class="btn btn-light action-button" disabled="@_isApplyingAdjustment" @onclick="AdjustSystemTimeAsync">
+                    @(_isApplyingAdjustment ? "Applying..." : _snapshot.AdjustActionLabel)
+                </button>
+            }
+            @if (_snapshot.Platform.CanOpenSystemTimeSettings)
+            {
+                <button type="button" class="btn btn-light action-button" disabled="@_isOpeningSettings" @onclick="OpenSystemTimeSettingsAsync">
+                    @(_isOpeningSettings ? "Opening..." : _snapshot.Platform.SettingsActionLabel)
+                </button>
+            }
             <NavLink class="btn btn-light action-button" href="settings">Settings</NavLink>
         </div>
     </section>
+
+    @if (_actionMessage is not null)
+    {
+        <p class="success-banner">@_actionMessage</p>
+    }
 
     @if (_errorMessage is not null)
     {
@@ -74,11 +91,15 @@ else
                 </div>
                 <div class="status-chip">
                     <span class="status-chip-label">Background Refresh</span>
-                    <strong class="status-chip-value">@(_snapshot.Platform.SupportsBackgroundRefresh ? "Planned" : "Limited")</strong>
+                    <strong class="status-chip-value">@_snapshot.Platform.BackgroundRefreshMode</strong>
                 </div>
                 <div class="status-chip">
                     <span class="status-chip-label">Direct Time Adjustment</span>
-                    <strong class="status-chip-value">@(_snapshot.Platform.SupportsDirectTimeAdjustment ? "Supported target" : "Guided fallback")</strong>
+                    <strong class="status-chip-value">@FormatAdjustmentAvailability(_snapshot.Platform)</strong>
+                </div>
+                <div class="status-chip">
+                    <span class="status-chip-label">Settings Shortcut</span>
+                    <strong class="status-chip-value">@FormatSettingsShortcut(_snapshot.Platform)</strong>
                 </div>
             </div>
         </article>
@@ -91,6 +112,7 @@ else
                         <p>@_snapshot.Platform.Summary</p>
                     </div>
                 </div>
+                <p class="support-copy"><strong>Mode:</strong> @_snapshot.ModeLabel</p>
                 <p class="support-guidance">@_snapshot.Platform.Guidance</p>
             </article>
 
@@ -151,6 +173,9 @@ else
 @code {
     private DashboardSnapshot? _snapshot;
     private bool _isRefreshing;
+    private bool _isApplyingAdjustment;
+    private bool _isOpeningSettings;
+    private string? _actionMessage;
     private string? _errorMessage;
 
     protected override async Task OnInitializedAsync()
@@ -164,6 +189,7 @@ else
         try
         {
             _snapshot = await Workspace.RefreshAsync(SyncTrigger.ManualUpdate);
+            _actionMessage = null;
             _errorMessage = null;
         }
         catch (Exception exception)
@@ -173,6 +199,63 @@ else
         finally
         {
             _isRefreshing = false;
+        }
+    }
+
+    private async Task AdjustSystemTimeAsync()
+    {
+        _isApplyingAdjustment = true;
+        try
+        {
+            var result = await Workspace.AdjustSystemTimeAsync();
+            if (result.Succeeded)
+            {
+                _actionMessage = result.Message;
+                _errorMessage = null;
+                await LoadSnapshotAsync();
+            }
+            else
+            {
+                _actionMessage = null;
+                _errorMessage = result.Message;
+            }
+        }
+        catch (Exception exception)
+        {
+            _actionMessage = null;
+            _errorMessage = $"System clock adjustment failed unexpectedly: {exception.Message}";
+        }
+        finally
+        {
+            _isApplyingAdjustment = false;
+        }
+    }
+
+    private async Task OpenSystemTimeSettingsAsync()
+    {
+        _isOpeningSettings = true;
+        try
+        {
+            var result = await Workspace.OpenSystemTimeSettingsAsync();
+            if (result.Succeeded)
+            {
+                _actionMessage = result.Message;
+                _errorMessage = null;
+            }
+            else
+            {
+                _actionMessage = null;
+                _errorMessage = result.Message;
+            }
+        }
+        catch (Exception exception)
+        {
+            _actionMessage = null;
+            _errorMessage = $"Unable to open system settings: {exception.Message}";
+        }
+        finally
+        {
+            _isOpeningSettings = false;
         }
     }
 
@@ -234,6 +317,20 @@ else
         AppPlatform.Ios => "iOS",
         _ => "Unknown"
     };
+
+    private static string FormatAdjustmentAvailability(PlatformCapabilities platform) =>
+        platform.CanAdjustDirectlyNow
+            ? "Ready now"
+            : platform.RequiresElevation
+                ? "Needs elevation"
+                : platform.SupportsDirectTimeAdjustment
+                    ? "Temporarily unavailable"
+                    : "Guided fallback";
+
+    private static string FormatSettingsShortcut(PlatformCapabilities platform) =>
+        platform.CanOpenSystemTimeSettings
+            ? platform.SettingsActionLabel
+            : "Manual steps only";
 
     private static string GetSummaryClass(DashboardSnapshot snapshot)
     {

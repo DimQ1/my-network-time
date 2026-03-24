@@ -1,14 +1,21 @@
-﻿namespace MyNetworkTime.App;
+using MyNetworkTime.Core.Platforms;
+
+namespace MyNetworkTime.App;
 
 public partial class App : Application
 {
-	public App()
-	{
-		InitializeComponent();
-	}
+    private readonly IAppLifecycleSyncService _lifecycleSyncService;
 
-	protected override Window CreateWindow(IActivationState? activationState)
-	{
-		return new Window(new MainPage()) { Title = "MyNetworkTime.App" };
-	}
+    public App(IAppLifecycleSyncService lifecycleSyncService)
+    {
+        _lifecycleSyncService = lifecycleSyncService;
+        InitializeComponent();
+        _lifecycleSyncService.Start();
+        _ = _lifecycleSyncService.CheckNowAsync();
+    }
+
+    protected override Window CreateWindow(IActivationState? activationState)
+    {
+        return new Window(new MainPage()) { Title = "MyNetworkTime.App" };
+    }
 }

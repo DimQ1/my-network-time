@@ -12,4 +12,6 @@ public sealed record DashboardSnapshot(
     string ModeLabel,
     string? LastError,
     PlatformCapabilities Platform,
+    bool CanAdjustSystemTimeFromDashboard,
+    string AdjustActionLabel,
     IReadOnlyList<ServerStatusSnapshot> Servers);

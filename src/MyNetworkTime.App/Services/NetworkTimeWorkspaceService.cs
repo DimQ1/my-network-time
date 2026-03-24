@@ -14,6 +14,8 @@ internal sealed class NetworkTimeWorkspaceService(
     ISyncStateRepository syncStateRepository,
     SyncCoordinator syncCoordinator,
     IPlatformCapabilitiesProvider platformCapabilitiesProvider,
+    ITimeAdjustmentService timeAdjustmentService,
+    IPermissionGuidanceService permissionGuidanceService,
     TimeProvider timeProvider) : INetworkTimeWorkspaceService
 {
     public async ValueTask<DashboardSnapshot> GetDashboardAsync(CancellationToken cancellationToken = default)
@@ -40,6 +42,60 @@ internal sealed class NetworkTimeWorkspaceService(
 
     public ValueTask<IReadOnlyList<LogEntrySnapshot>> GetLogsAsync(CancellationToken cancellationToken = default) =>
         logRepository.GetRecentAsync(cancellationToken);
+
+    public async ValueTask<TimeAdjustmentResult> AdjustSystemTimeAsync(CancellationToken cancellationToken = default)
+    {
+        var settings = await settingsRepository.GetAsync(cancellationToken);
+        if (settings.AdjustmentMode == TimeAdjustmentMode.DoNotUpdateTime)
+        {
+            return TimeAdjustmentResult.Failure("Time adjustment is disabled in Settings.");
+        }
+
+        var state = await syncStateRepository.GetAsync(cancellationToken);
+        if (state?.LastSyncOffset is null)
+        {
+            return TimeAdjustmentResult.Failure("No successful sync sample is available yet. Run Update Now first.");
+        }
+
+        var availability = timeAdjustmentService.GetAvailability();
+        if (!availability.CanAdjustNow)
+        {
+            return TimeAdjustmentResult.Failure(availability.Guidance);
+        }
+
+        var targetUtc = timeProvider.GetUtcNow() + state.LastSyncOffset.Value;
+        var result = await timeAdjustmentService.TryAdjustAsync(targetUtc, cancellationToken);
+        var loggedAtUtc = timeProvider.GetUtcNow();
+
+        await logRepository.AppendAsync(
+        [
+            new LogEntrySnapshot(
+                Timestamp: loggedAtUtc,
+                Message: result.Succeeded
+                    ? "System clock adjusted from the latest stored sync sample."
+                    : $"System clock adjustment failed: {result.Message}",
+                Context: "Manual Adjustment")
+        ], cancellationToken);
+
+        if (!result.Succeeded)
+        {
+            return result;
+        }
+
+        await syncStateRepository.SaveAsync(
+            state with
+            {
+                LastSyncOffset = TimeSpan.Zero,
+                SummaryStatus = "System clock adjusted from the latest network sample.",
+                LastError = null
+            },
+            cancellationToken);
+
+        return result;
+    }
+
+    public ValueTask<PlatformActionResult> OpenSystemTimeSettingsAsync(CancellationToken cancellationToken = default) =>
+        permissionGuidanceService.OpenSystemTimeSettingsAsync(cancellationToken);
 
     private DashboardSnapshot BuildDashboardSnapshot(AppSettingsSnapshot settings, SyncStateSnapshot state)
     {
@@ -70,6 +126,10 @@ internal sealed class NetworkTimeWorkspaceService(
             })
             .ToList();
 
+        var decision = state.LastSyncOffset is { } offset
+            ? TimeAdjustmentPolicy.Evaluate(settings, offset, timeAdjustmentService.GetAvailability())
+            : null;
+
         return new DashboardSnapshot(
             CurrentTime: now,
             LastAttempt: state.LastAttemptUtc?.ToLocalTime(),
@@ -80,6 +140,8 @@ internal sealed class NetworkTimeWorkspaceService(
             ModeLabel: BuildModeLabel(settings, capabilities),
             LastError: state.LastError,
             Platform: capabilities,
+            CanAdjustSystemTimeFromDashboard: decision?.Kind == TimeAdjustmentDecisionKind.AwaitingUserConfirmation,
+            AdjustActionLabel: BuildAdjustActionLabel(settings, capabilities),
             Servers: servers);
     }
 
@@ -87,11 +149,25 @@ internal sealed class NetworkTimeWorkspaceService(
     {
         return settings.AdjustmentMode switch
         {
-            TimeAdjustmentMode.AdjustSystemTime when capabilities.SupportsDirectTimeAdjustment => "System clock sync",
-            TimeAdjustmentMode.AdjustSystemTime => "Monitor mode",
+            TimeAdjustmentMode.AdjustSystemTime when capabilities.CanAdjustDirectlyNow => "Automatic system clock sync",
+            TimeAdjustmentMode.AdjustSystemTime when capabilities.SupportsDirectTimeAdjustment => "Automatic sync (needs elevation)",
+            TimeAdjustmentMode.AdjustSystemTime => "Guided sync mode",
             TimeAdjustmentMode.DoNotUpdateTime => "Read-only monitoring",
-            TimeAdjustmentMode.AskUser => "Ask before adjusting",
+            TimeAdjustmentMode.AskUser when capabilities.CanAdjustDirectlyNow => "Ask before adjusting",
+            TimeAdjustmentMode.AskUser => "Ask with guided fallback",
             _ => "Monitor mode"
+        };
+    }
+
+    private static string BuildAdjustActionLabel(AppSettingsSnapshot settings, PlatformCapabilities capabilities)
+    {
+        return settings.AdjustmentMode switch
+        {
+            TimeAdjustmentMode.AskUser when capabilities.CanAdjustDirectlyNow => "Adjust System Time",
+            TimeAdjustmentMode.AskUser => "Adjustment unavailable",
+            TimeAdjustmentMode.AdjustSystemTime when capabilities.CanAdjustDirectlyNow => "Auto-adjust active",
+            TimeAdjustmentMode.AdjustSystemTime => "Run elevated to adjust",
+            _ => "Adjustment disabled"
         };
     }
 }

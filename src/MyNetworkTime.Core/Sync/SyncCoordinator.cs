@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using MyNetworkTime.Core.Dashboard;
 using MyNetworkTime.Core.Logs;
+using MyNetworkTime.Core.Platforms;
 using MyNetworkTime.Core.Protocols;
 using MyNetworkTime.Core.Settings;
 using MyNetworkTime.Core.Storage;
@@ -13,6 +14,7 @@ public sealed class SyncCoordinator(
     ILogRepository logRepository,
     NetworkTimeProtocolClientResolver protocolResolver,
     ServerSelectionPolicy selectionPolicy,
+    ITimeAdjustmentService timeAdjustmentService,
     TimeProvider timeProvider,
     ILogger<SyncCoordinator> logger)
 {
@@ -60,7 +62,7 @@ public sealed class SyncCoordinator(
 
         var nextAttemptUtc = startedAtUtc + GetNextDelay(settings, successfulSamples.Count > 0);
         var updatedServers = BuildServerStates(settings, previousState, attemptResults);
-        var logs = BuildLogs(trigger, successfulSamples, attemptResults, startedAtUtc);
+        var logs = BuildLogs(trigger, successfulSamples, attemptResults, startedAtUtc).ToList();
 
         SyncStateSnapshot state;
         if (successfulSamples.Count > 0)
@@ -68,14 +70,45 @@ public sealed class SyncCoordinator(
             var selected = successfulSamples
                 .OrderBy(result => result.Sample.RoundTripDelay)
                 .First();
+            var availability = timeAdjustmentService.GetAvailability();
+            var decision = TimeAdjustmentPolicy.Evaluate(settings, selected.Sample.Offset, availability);
+            var summaryStatus = "Time is synchronized.";
+            var lastSyncOffset = selected.Sample.Offset;
+            var lastError = attemptResults.Values.FirstOrDefault(result => result.State == ServerHealthState.Error)?.Error;
+
+            if (decision.Kind == TimeAdjustmentDecisionKind.AutoAdjust)
+            {
+                var targetUtc = CalculateTargetUtc(selected.Sample);
+                var adjustmentResult = await timeAdjustmentService.TryAdjustAsync(targetUtc, cancellationToken);
+                logs.Add(CreateAdjustmentLog(startedAtUtc, adjustmentResult));
+
+                if (adjustmentResult.Succeeded)
+                {
+                    summaryStatus = decision.Summary;
+                    lastSyncOffset = TimeSpan.Zero;
+                }
+                else
+                {
+                    summaryStatus = "Time sample captured, but system clock adjustment failed.";
+                    lastError = adjustmentResult.Message;
+                }
+            }
+            else if (decision.Kind is TimeAdjustmentDecisionKind.AwaitingUserConfirmation or TimeAdjustmentDecisionKind.Unavailable)
+            {
+                summaryStatus = decision.Summary;
+            }
+            else if (decision.Kind is TimeAdjustmentDecisionKind.MonitoringOnly or TimeAdjustmentDecisionKind.WithinThreshold)
+            {
+                summaryStatus = decision.Summary;
+            }
 
             state = new SyncStateSnapshot(
                 LastAttemptUtc: startedAtUtc,
                 LastSyncUtc: selected.Sample.ObservedAtUtc,
-                LastSyncOffset: selected.Sample.Offset,
+                LastSyncOffset: lastSyncOffset,
                 NextAttemptUtc: nextAttemptUtc,
-                SummaryStatus: "Time is synchronized.",
-                LastError: attemptResults.Values.FirstOrDefault(result => result.State == ServerHealthState.Error)?.Error,
+                SummaryStatus: summaryStatus,
+                LastError: lastError,
                 Servers: updatedServers);
         }
         else
@@ -233,6 +266,22 @@ public sealed class SyncCoordinator(
         }
 
         return logs;
+    }
+
+    private DateTimeOffset CalculateTargetUtc(NetworkTimeSample sample)
+    {
+        var elapsedSinceObservation = timeProvider.GetUtcNow() - sample.ObservedAtUtc;
+        return sample.ServerTimeUtc + elapsedSinceObservation;
+    }
+
+    private static LogEntrySnapshot CreateAdjustmentLog(DateTimeOffset startedAtUtc, TimeAdjustmentResult result)
+    {
+        return new LogEntrySnapshot(
+            Timestamp: startedAtUtc,
+            Message: result.Succeeded
+                ? "System clock adjusted from network time."
+                : $"System clock adjustment failed: {result.Message}",
+            Context: "Clock Adjustment");
     }
 
     private sealed record ServerAttemptResult(
