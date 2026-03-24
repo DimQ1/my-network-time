@@ -86,6 +86,8 @@ internal sealed class SettingsEditorModel : IValidatableObject
     [Required]
     public string LoggingLevel { get; set; } = "Normal";
 
+    public int ServerCount => 5;
+
     public static SettingsEditorModel FromSnapshot(AppSettingsSnapshot settings)
     {
         var model = new SettingsEditorModel
@@ -187,6 +189,44 @@ internal sealed class SettingsEditorModel : IValidatableObject
         }
     }
 
+    public string GetServerHost(int index) => GetServer(index).Host;
+
+    public void SetServerHost(int index, string value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+
+        SetServer(index, GetServer(index) with { Host = value });
+    }
+
+    public ServerProtocol GetServerProtocol(int index) => GetServer(index).Protocol;
+
+    public void SetServerProtocol(int index, ServerProtocol value) =>
+        SetServer(index, GetServer(index) with { Protocol = value });
+
+    public int GetServerPort(int index) => GetServer(index).Port;
+
+    public void SetServerPort(int index, int value) =>
+        SetServer(index, GetServer(index) with { Port = value });
+
+    public void MoveServer(int fromIndex, int toIndex)
+    {
+        ValidateServerIndex(fromIndex);
+        ValidateServerIndex(toIndex);
+
+        if (fromIndex == toIndex)
+        {
+            return;
+        }
+
+        var servers = GetServers().ToList();
+        var movedServer = servers[fromIndex];
+
+        servers.RemoveAt(fromIndex);
+        servers.Insert(toIndex, movedServer);
+
+        ApplyServers(servers);
+    }
+
     private IReadOnlyList<ServerEndpointSettings> BuildServers()
     {
         return new ServerEndpointSettings?[]
@@ -215,4 +255,89 @@ internal sealed class SettingsEditorModel : IValidatableObject
             apply(server);
         }
     }
+
+    private ServerEditorServer GetServer(int index)
+    {
+        ValidateServerIndex(index);
+
+        return index switch
+        {
+            0 => new ServerEditorServer(Server1Host, Server1Protocol, Server1Port),
+            1 => new ServerEditorServer(Server2Host, Server2Protocol, Server2Port),
+            2 => new ServerEditorServer(Server3Host, Server3Protocol, Server3Port),
+            3 => new ServerEditorServer(Server4Host, Server4Protocol, Server4Port),
+            4 => new ServerEditorServer(Server5Host, Server5Protocol, Server5Port),
+            _ => throw new ArgumentOutOfRangeException(nameof(index))
+        };
+    }
+
+    private void SetServer(int index, ServerEditorServer server)
+    {
+        ValidateServerIndex(index);
+
+        switch (index)
+        {
+            case 0:
+                Server1Host = server.Host;
+                Server1Protocol = server.Protocol;
+                Server1Port = server.Port;
+                break;
+            case 1:
+                Server2Host = server.Host;
+                Server2Protocol = server.Protocol;
+                Server2Port = server.Port;
+                break;
+            case 2:
+                Server3Host = server.Host;
+                Server3Protocol = server.Protocol;
+                Server3Port = server.Port;
+                break;
+            case 3:
+                Server4Host = server.Host;
+                Server4Protocol = server.Protocol;
+                Server4Port = server.Port;
+                break;
+            case 4:
+                Server5Host = server.Host;
+                Server5Protocol = server.Protocol;
+                Server5Port = server.Port;
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(index));
+        }
+    }
+
+    private IReadOnlyList<ServerEditorServer> GetServers() =>
+    [
+        GetServer(0),
+        GetServer(1),
+        GetServer(2),
+        GetServer(3),
+        GetServer(4)
+    ];
+
+    private void ApplyServers(IReadOnlyList<ServerEditorServer> servers)
+    {
+        ArgumentNullException.ThrowIfNull(servers);
+
+        if (servers.Count != ServerCount)
+        {
+            throw new ArgumentException("Expected exactly five server slots.", nameof(servers));
+        }
+
+        for (var index = 0; index < servers.Count; index++)
+        {
+            SetServer(index, servers[index]);
+        }
+    }
+
+    private void ValidateServerIndex(int index)
+    {
+        if (index < 0 || index >= ServerCount)
+        {
+            throw new ArgumentOutOfRangeException(nameof(index));
+        }
+    }
+
+    private sealed record ServerEditorServer(string Host, ServerProtocol Protocol, int Port);
 }

@@ -421,6 +421,12 @@ h1:focus {
     gap: 0.7rem;
 }
 
+.server-editor-note {
+    margin: 0;
+    color: var(--app-muted);
+    line-height: 1.5;
+}
+
 .server-editor-head,
 .server-editor-row {
     display: grid;
@@ -438,6 +444,29 @@ h1:focus {
     padding-inline: 0.2rem;
 }
 
+.server-editor-row {
+    padding: 0.25rem;
+    border: 1px solid transparent;
+    border-radius: 1rem;
+    transition: background-color 120ms ease, border-color 120ms ease, opacity 120ms ease;
+}
+
+.server-editor-row-dragging {
+    opacity: 0.58;
+    background: rgba(19, 34, 56, 0.04);
+}
+
+.server-editor-row-drop-target {
+    border-color: rgba(18, 138, 126, 0.34);
+    background: var(--app-accent-soft);
+}
+
+.server-order-token {
+    display: grid;
+    justify-items: center;
+    gap: 0.25rem;
+}
+
 .server-slot {
     width: 2.25rem;
     height: 2.25rem;
@@ -447,6 +476,26 @@ h1:focus {
     background: rgba(19, 34, 56, 0.06);
     font-size: 0.85rem;
     font-weight: 700;
+}
+
+.server-drag-handle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 1.5rem;
+    padding: 0 0.2rem;
+    color: var(--app-muted);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: grab;
+    user-select: none;
+    touch-action: none;
+}
+
+.server-drag-handle:active {
+    cursor: grabbing;
 }
 
 .editor-grid {

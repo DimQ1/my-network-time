@@ -1,5 +1,8 @@
 @page "/"
+@implements IAsyncDisposable
 @inject INetworkTimeWorkspaceService Workspace
+@inject DashboardRefreshNotifier DashboardRefreshNotifier
+@inject TimeProvider TimeProvider
 
 <PageTitle>Dashboard</PageTitle>
 
@@ -172,14 +175,20 @@ else
 
 @code {
     private DashboardSnapshot? _snapshot;
+    private DashboardSnapshot? _baseSnapshot;
     private bool _isRefreshing;
     private bool _isApplyingAdjustment;
     private bool _isOpeningSettings;
     private string? _actionMessage;
     private string? _errorMessage;
+    private DateTimeOffset _baseSnapshotCapturedAt;
+    private CancellationTokenSource? _clockCancellationTokenSource;
+    private Task? _clockTask;
 
     protected override async Task OnInitializedAsync()
     {
+        DashboardRefreshNotifier.RefreshRequested += RefreshFromNotificationAsync;
+        StartClockLoop();
         await LoadSnapshotAsync();
     }
 
@@ -188,7 +197,7 @@ else
         _isRefreshing = true;
         try
         {
-            _snapshot = await Workspace.RefreshAsync(SyncTrigger.ManualUpdate);
+            SetSnapshot(await Workspace.RefreshAsync(SyncTrigger.ManualUpdate));
             _actionMessage = null;
             _errorMessage = null;
         }
@@ -263,12 +272,98 @@ else
     {
         try
         {
-            _snapshot = await Workspace.GetDashboardAsync();
+            SetSnapshot(await Workspace.GetDashboardAsync());
             _errorMessage = null;
         }
         catch (Exception exception)
         {
             _errorMessage = $"Unable to load dashboard: {exception.Message}";
+        }
+    }
+
+    private void SetSnapshot(DashboardSnapshot snapshot)
+    {
+        _baseSnapshot = snapshot;
+        _baseSnapshotCapturedAt = TimeProvider.GetLocalNow();
+        _snapshot = BuildVisibleSnapshot(snapshot, _baseSnapshotCapturedAt);
+    }
+
+    private DashboardSnapshot BuildVisibleSnapshot(DashboardSnapshot snapshot, DateTimeOffset now)
+    {
+        var elapsed = now - _baseSnapshotCapturedAt;
+        if (elapsed < TimeSpan.Zero)
+        {
+            elapsed = TimeSpan.Zero;
+        }
+
+        var nextAttemptIn = snapshot.NextAttemptIn - elapsed;
+        if (nextAttemptIn < TimeSpan.Zero)
+        {
+            nextAttemptIn = TimeSpan.Zero;
+        }
+
+        return snapshot with
+        {
+            CurrentTime = snapshot.CurrentTime + elapsed,
+            NextAttemptIn = nextAttemptIn
+        };
+    }
+
+    private void StartClockLoop()
+    {
+        if (_clockTask is not null)
+        {
+            return;
+        }
+
+        _clockCancellationTokenSource = new CancellationTokenSource();
+        _clockTask = RunClockLoopAsync(_clockCancellationTokenSource.Token);
+    }
+
+    private async Task RunClockLoopAsync(CancellationToken cancellationToken)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+
+        try
+        {
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                if (_baseSnapshot is null)
+                {
+                    continue;
+                }
+
+                _snapshot = BuildVisibleSnapshot(_baseSnapshot, TimeProvider.GetLocalNow());
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+    }
+
+    private async ValueTask RefreshFromNotificationAsync()
+    {
+        await InvokeAsync(async () =>
+        {
+            await LoadSnapshotAsync();
+            StateHasChanged();
+        });
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        DashboardRefreshNotifier.RefreshRequested -= RefreshFromNotificationAsync;
+
+        if (_clockCancellationTokenSource is not null)
+        {
+            await _clockCancellationTokenSource.CancelAsync();
+            _clockCancellationTokenSource.Dispose();
+        }
+
+        if (_clockTask is not null)
+        {
+            await _clockTask;
         }
     }
 

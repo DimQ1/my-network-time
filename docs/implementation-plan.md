@@ -16,6 +16,7 @@ Primary user scenarios:
 - Query several time servers and compare offset/lag
 - Run manual sync
 - Configure update interval, retry interval, server list, logging, and time adjustment rules
+- Reorder configured time servers in Settings via drag and drop
 - Review sync history and errors
 
 ## Important platform constraints
@@ -175,6 +176,7 @@ Branch:
 Deliverables:
 
 - Interactive dashboard refresh for `Current Status` and `Individual Time Servers` without requiring manual page reload
+- Drag-and-drop reordering for `Time Servers` in `Settings`
 - Final cleanup and documentation
 - App icons and basic branding
 - Build verification checklist for Windows, Android, and iOS
@@ -184,6 +186,7 @@ Exit criteria:
 
 - Solution builds cleanly
 - Dashboard status blocks refresh interactively after sync and scheduled updates
+- Settings allow users to change time server priority by dragging and reordering entries
 - README and test/run instructions are complete
 
 ## Branching and merge workflow

@@ -19,6 +19,7 @@ public static class AppServiceCollectionExtensions
         services.AddSingleton<IPermissionGuidanceService, PlatformPermissionGuidanceService>();
         services.AddSingleton<IPlatformCapabilitiesProvider, DevicePlatformCapabilitiesProvider>();
         services.AddSingleton<IAppLifecycleSyncService, AppLifecycleSyncService>();
+        services.AddSingleton<DashboardRefreshNotifier>();
         services.AddSingleton<ISettingsRepository>(_ => new JsonSettingsRepository(AppStoragePaths.SettingsFilePath));
         services.AddSingleton<ILogRepository>(_ => new JsonLogRepository(AppStoragePaths.LogsFilePath));
         services.AddSingleton<ISyncStateRepository>(_ => new JsonSyncStateRepository(AppStoragePaths.SyncStateFilePath));
