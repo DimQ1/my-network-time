@@ -20,5 +20,7 @@ public interface INetworkTimeWorkspaceService
 
     ValueTask<TimeAdjustmentResult> AdjustSystemTimeAsync(CancellationToken cancellationToken = default);
 
+    ValueTask<TimeAdjustmentResult> SetSystemTimeAsync(DateTimeOffset targetLocalTime, CancellationToken cancellationToken = default);
+
     ValueTask<PlatformActionResult> OpenSystemTimeSettingsAsync(CancellationToken cancellationToken = default);
 }

@@ -98,6 +98,48 @@ internal sealed class NetworkTimeWorkspaceService(
         return result;
     }
 
+    public async ValueTask<TimeAdjustmentResult> SetSystemTimeAsync(DateTimeOffset targetLocalTime, CancellationToken cancellationToken = default)
+    {
+        var availability = timeAdjustmentService.GetAvailability();
+        if (!availability.CanAdjustNow)
+        {
+            return TimeAdjustmentResult.Failure(availability.Guidance);
+        }
+
+        var result = await timeAdjustmentService.TryAdjustAsync(targetLocalTime, cancellationToken);
+        var loggedAtUtc = timeProvider.GetUtcNow();
+
+        await logRepository.AppendAsync(
+        [
+            new LogEntrySnapshot(
+                Timestamp: loggedAtUtc,
+                Message: result.Succeeded
+                    ? $"System clock set manually to {targetLocalTime.ToLocalTime():M/d/yyyy h:mm:ss tt}."
+                    : $"Manual system clock update failed: {result.Message}",
+                Context: "Manual Time Set")
+        ], cancellationToken);
+
+        if (!result.Succeeded)
+        {
+            return result;
+        }
+
+        var state = await syncStateRepository.GetAsync(cancellationToken);
+        if (state is not null)
+        {
+            await syncStateRepository.SaveAsync(
+                state with
+                {
+                    LastSyncOffset = TimeSpan.Zero,
+                    SummaryStatus = "System clock set manually from dashboard.",
+                    LastError = null
+                },
+                cancellationToken);
+        }
+
+        return result;
+    }
+
     public ValueTask<PlatformActionResult> OpenSystemTimeSettingsAsync(CancellationToken cancellationToken = default) =>
         permissionGuidanceService.OpenSystemTimeSettingsAsync(cancellationToken);
 

@@ -64,6 +64,10 @@ else
                     <strong class="fact-value">@FormatDate(_snapshot.CurrentTime)</strong>
                 </div>
                 <div class="fact-row">
+                    <span class="fact-label">Sync Function Invoked</span>
+                    <strong class="fact-value">@FormatSyncInvocationStatus()</strong>
+                </div>
+                <div class="fact-row">
                     <span class="fact-label">Last Attempt</span>
                     <strong class="fact-value">@FormatDate(_snapshot.LastAttempt)</strong>
                 </div>
@@ -128,6 +132,33 @@ else
                 </div>
                 <p class="error-banner">@(_snapshot.LastError ?? "No errors recorded.")</p>
             </article>
+
+            <article class="panel">
+                <div class="panel-header">
+                    <div>
+                        <h2>Manual Time Set</h2>
+                        <p>Set local system time explicitly from the dashboard.</p>
+                    </div>
+                </div>
+                <div class="editor-grid">
+                    <div class="editor-field">
+                        <label>Target Local Date/Time</label>
+                        <InputDate class="form-control nt-input"
+                                   @bind-Value="_manualLocalDateTime"
+                                   Type="InputDateType.DateTimeLocal" />
+                    </div>
+                </div>
+                <button type="button"
+                        class="btn btn-light action-button"
+                        disabled="@(!_snapshot.Platform.CanAdjustDirectlyNow || _isSettingManualTime)"
+                        @onclick="SetManualSystemTimeAsync">
+                    @(_isSettingManualTime ? "Applying..." : "Set Time Manually")
+                </button>
+                @if (!_snapshot.Platform.CanAdjustDirectlyNow)
+                {
+                    <p class="support-guidance">@_snapshot.Platform.Guidance</p>
+                }
+            </article>
         </div>
     </section>
 
@@ -178,9 +209,12 @@ else
     private DashboardSnapshot? _baseSnapshot;
     private bool _isRefreshing;
     private bool _isApplyingAdjustment;
+    private bool _isSettingManualTime;
     private bool _isOpeningSettings;
     private string? _actionMessage;
     private string? _errorMessage;
+    private string _syncInvocationStatus = "No (waiting for a sync trigger).";
+    private DateTime? _manualLocalDateTime;
     private DateTimeOffset _baseSnapshotCapturedAt;
     private CancellationTokenSource? _clockCancellationTokenSource;
     private Task? _clockTask;
@@ -197,8 +231,10 @@ else
         _isRefreshing = true;
         try
         {
-            SetSnapshot(await Workspace.RefreshAsync(SyncTrigger.ManualUpdate));
-            _actionMessage = null;
+            var previousAttempt = _snapshot?.LastAttempt;
+            var refreshedSnapshot = await Workspace.RefreshAsync(SyncTrigger.ManualUpdate);
+            SetSnapshot(refreshedSnapshot);
+            RecordInvocationResult(previousAttempt, refreshedSnapshot.LastAttempt, "Update Now");
             _errorMessage = null;
         }
         catch (Exception exception)
@@ -268,11 +304,60 @@ else
         }
     }
 
+    private async Task SetManualSystemTimeAsync()
+    {
+        _isSettingManualTime = true;
+        try
+        {
+            if (_manualLocalDateTime is null)
+            {
+                _actionMessage = null;
+                _errorMessage = "Enter a valid local date and time before applying manual update.";
+                return;
+            }
+
+            var targetLocalTime = new DateTimeOffset(DateTime.SpecifyKind(_manualLocalDateTime.Value, DateTimeKind.Local));
+
+            var result = await Workspace.SetSystemTimeAsync(targetLocalTime);
+            if (result.Succeeded)
+            {
+                _actionMessage = result.Message;
+                _errorMessage = null;
+                await LoadSnapshotAsync();
+            }
+            else
+            {
+                _actionMessage = null;
+                _errorMessage = result.Message;
+            }
+        }
+        catch (Exception exception)
+        {
+            _actionMessage = null;
+            _errorMessage = $"Manual system clock update failed unexpectedly: {exception.Message}";
+        }
+        finally
+        {
+            _isSettingManualTime = false;
+        }
+    }
+
     private async Task LoadSnapshotAsync()
     {
         try
         {
             SetSnapshot(await Workspace.GetDashboardAsync());
+
+            if (_manualLocalDateTime is null)
+            {
+                _manualLocalDateTime = (_snapshot?.CurrentTime ?? TimeProvider.GetLocalNow()).ToLocalTime().DateTime;
+            }
+
+            if (_snapshot?.LastAttempt is { } lastAttempt && _syncInvocationStatus.StartsWith("No", StringComparison.OrdinalIgnoreCase))
+            {
+                _syncInvocationStatus = $"Known last attempt: {FormatDate(lastAttempt)}.";
+            }
+
             _errorMessage = null;
         }
         catch (Exception exception)
@@ -286,6 +371,19 @@ else
         _baseSnapshot = snapshot;
         _baseSnapshotCapturedAt = TimeProvider.GetLocalNow();
         _snapshot = BuildVisibleSnapshot(snapshot, _baseSnapshotCapturedAt);
+    }
+
+    private void RecordInvocationResult(DateTimeOffset? previousAttempt, DateTimeOffset? currentAttempt, string trigger)
+    {
+        if (currentAttempt is not null && (previousAttempt is null || currentAttempt > previousAttempt))
+        {
+            _syncInvocationStatus = $"Yes ({trigger} at {FormatDate(currentAttempt)}).";
+            _actionMessage = $"Sync function invoked via {trigger} at {FormatDate(currentAttempt)}.";
+            return;
+        }
+
+        _syncInvocationStatus = $"No ({trigger} did not update Last Attempt).";
+        _actionMessage = null;
     }
 
     private DashboardSnapshot BuildVisibleSnapshot(DashboardSnapshot snapshot, DateTimeOffset now)
@@ -346,7 +444,11 @@ else
     {
         await InvokeAsync(async () =>
         {
-            await LoadSnapshotAsync();
+            var previousAttempt = _snapshot?.LastAttempt;
+            var refreshedSnapshot = await Workspace.GetDashboardAsync();
+            SetSnapshot(refreshedSnapshot);
+            RecordInvocationResult(previousAttempt, refreshedSnapshot.LastAttempt, "Background scheduler");
+            _errorMessage = null;
             StateHasChanged();
         });
     }
@@ -378,6 +480,11 @@ else
 
     private static string FormatCountdown(TimeSpan value) =>
         $"{Math.Max(0, (int)value.TotalHours)}h {value.Minutes}m {value.Seconds}s";
+
+    private string FormatSyncInvocationStatus()
+    {
+        return _syncInvocationStatus;
+    }
 
     private static string FormatProtocol(ServerProtocol protocol) => protocol switch
     {
