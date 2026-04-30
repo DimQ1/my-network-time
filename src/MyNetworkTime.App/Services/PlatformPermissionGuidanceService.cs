@@ -3,7 +3,7 @@ using MyNetworkTime.Core.Platforms;
 
 namespace MyNetworkTime.App.Services;
 
-internal sealed class PlatformPermissionGuidanceService : IPermissionGuidanceService
+internal sealed class PlatformPermissionGuidanceService(ITimeAdjustmentService timeAdjustmentService) : IPermissionGuidanceService
 {
     public async ValueTask<PlatformActionResult> OpenSystemTimeSettingsAsync(CancellationToken cancellationToken = default)
     {
@@ -35,5 +35,10 @@ internal sealed class PlatformPermissionGuidanceService : IPermissionGuidanceSer
         {
             return PlatformActionResult.Failure($"Unable to open system settings: {exception.Message}");
         }
+    }
+
+    public ValueTask<ElevationRequestResult> RequestTimeAdjustmentElevationAsync(CancellationToken cancellationToken = default)
+    {
+        return timeAdjustmentService.RequestElevationAsync(cancellationToken);
     }
 }

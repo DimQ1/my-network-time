@@ -64,6 +64,15 @@ internal sealed class NetworkTimeWorkspaceService(
         var availability = timeAdjustmentService.GetAvailability();
         if (!availability.CanAdjustNow)
         {
+            // If elevation is needed, provide a clear message guiding the user to request elevation
+            if (availability.RequiresElevation)
+            {
+                return TimeAdjustmentResult.Failure(
+                    "Administrator privileges are required to change the system clock. " +
+                    "Use 'Request Admin Privileges' to restart the app with elevated permissions, " +
+                    "or open Date & Time settings for a manual correction.");
+            }
+
             return TimeAdjustmentResult.Failure(availability.Guidance);
         }
 
@@ -103,6 +112,14 @@ internal sealed class NetworkTimeWorkspaceService(
         var availability = timeAdjustmentService.GetAvailability();
         if (!availability.CanAdjustNow)
         {
+            if (availability.RequiresElevation)
+            {
+                return TimeAdjustmentResult.Failure(
+                    "Administrator privileges are required to change the system clock. " +
+                    "Use 'Request Admin Privileges' to restart the app with elevated permissions, " +
+                    "or open Date & Time settings for a manual correction.");
+            }
+
             return TimeAdjustmentResult.Failure(availability.Guidance);
         }
 
@@ -142,6 +159,35 @@ internal sealed class NetworkTimeWorkspaceService(
 
     public ValueTask<PlatformActionResult> OpenSystemTimeSettingsAsync(CancellationToken cancellationToken = default) =>
         permissionGuidanceService.OpenSystemTimeSettingsAsync(cancellationToken);
+
+    public async ValueTask<ElevationRequestResult> RequestTimeAdjustmentElevationAsync(CancellationToken cancellationToken = default)
+    {
+        var result = await permissionGuidanceService.RequestTimeAdjustmentElevationAsync(cancellationToken);
+
+        var loggedAtUtc = timeProvider.GetUtcNow();
+        await logRepository.AppendAsync(
+        [
+            new LogEntrySnapshot(
+                Timestamp: loggedAtUtc,
+                Message: result.ElevationRequested
+                    ? $"Elevation requested: {result.Message}"
+                    : $"Elevation not performed: {result.Message}",
+                Context: "Permission Elevation")
+        ], cancellationToken);
+
+        // If elevation was granted and a new process was started, shut down the current instance
+        if (result.ElevationRequested && result.RestartRequired)
+        {
+            _ = Task.Run(async () =>
+            {
+                // Brief delay to allow the response to be sent to the UI before shutdown
+                await Task.Delay(500, CancellationToken.None);
+                Environment.Exit(0);
+            });
+        }
+
+        return result;
+    }
 
     private DashboardSnapshot BuildDashboardSnapshot(AppSettingsSnapshot settings, SyncStateSnapshot state)
     {

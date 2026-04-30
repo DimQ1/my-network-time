@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using MyNetworkTime.Core.Platforms;
 
@@ -14,7 +15,7 @@ internal sealed class PlatformTimeAdjustmentService : ITimeAdjustmentService
                 guidance: "Automatic adjustment follows the selected sync mode and threshold while the app is running.")
             : TimeAdjustmentAvailability.NeedsElevation(
                 summary: "Windows supports direct clock adjustment, but this app session is not elevated.",
-                guidance: "Run the app as administrator to change the system clock, or open Date & Time settings for a manual correction.");
+                guidance: "Request administrator privileges to change the system clock, or open Date & Time settings for a manual correction.");
 #elif ANDROID
         return TimeAdjustmentAvailability.Unsupported(
             summary: "Android can compare network time, but normal apps do not usually have permission to change the system clock.",
@@ -30,6 +31,62 @@ internal sealed class PlatformTimeAdjustmentService : ITimeAdjustmentService
 #endif
     }
 
+    public ValueTask<ElevationRequestResult> RequestElevationAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+#if WINDOWS
+        if (IsRunningElevated())
+        {
+            return ValueTask.FromResult(ElevationRequestResult.AlreadyElevated(
+                "The app is already running with administrator privileges."));
+        }
+
+        try
+        {
+            var processPath = Environment.ProcessPath;
+            if (string.IsNullOrEmpty(processPath))
+            {
+                return ValueTask.FromResult(ElevationRequestResult.NotSupported(
+                    "Cannot determine the application executable path for elevation."));
+            }
+
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = processPath,
+                UseShellExecute = true,
+                Verb = "runas", // Triggers UAC elevation dialog on Windows
+                WindowStyle = ProcessWindowStyle.Normal
+            };
+
+            Process.Start(startInfo);
+
+            return ValueTask.FromResult(ElevationRequestResult.RequestedAndRestart(
+                "Administrator privileges requested. The app will restart with elevated permissions."));
+        }
+        catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223)
+        {
+            // ERROR_CANCELLED: User declined the UAC prompt
+            return ValueTask.FromResult(ElevationRequestResult.NotSupported(
+                "Elevation was cancelled by the user. Administrator privileges are required to change the system clock."));
+        }
+        catch (Exception ex)
+        {
+            return ValueTask.FromResult(ElevationRequestResult.NotSupported(
+                $"Failed to request elevation: {ex.Message}"));
+        }
+#elif ANDROID
+        return ValueTask.FromResult(ElevationRequestResult.NotSupported(
+            "Elevation is not supported on Android. Open Date & Time settings for manual correction."));
+#elif IOS
+        return ValueTask.FromResult(ElevationRequestResult.NotSupported(
+            "Elevation is not supported on iOS. Open Settings > General > Date & Time manually."));
+#else
+        return ValueTask.FromResult(ElevationRequestResult.NotSupported(
+            "Elevation is not supported on this platform."));
+#endif
+    }
+
     public ValueTask<TimeAdjustmentResult> TryAdjustAsync(DateTimeOffset targetUtc, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -42,10 +99,24 @@ internal sealed class PlatformTimeAdjustmentService : ITimeAdjustmentService
         }
 
         var utc = targetUtc.ToUniversalTime();
+        // DayOfWeek must be computed correctly: Win32 SYSTEMTIME uses 0=Sunday through 6=Saturday
+        var dayOfWeek = utc.DayOfWeek switch
+        {
+            System.DayOfWeek.Sunday => (ushort)0,
+            System.DayOfWeek.Monday => (ushort)1,
+            System.DayOfWeek.Tuesday => (ushort)2,
+            System.DayOfWeek.Wednesday => (ushort)3,
+            System.DayOfWeek.Thursday => (ushort)4,
+            System.DayOfWeek.Friday => (ushort)5,
+            System.DayOfWeek.Saturday => (ushort)6,
+            _ => (ushort)0
+        };
+
         var systemTime = new SystemTime
         {
             Year = checked((ushort)utc.Year),
             Month = checked((ushort)utc.Month),
+            DayOfWeek = dayOfWeek,
             Day = checked((ushort)utc.Day),
             Hour = checked((ushort)utc.Hour),
             Minute = checked((ushort)utc.Minute),

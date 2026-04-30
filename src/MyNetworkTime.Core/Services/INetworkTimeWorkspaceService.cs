@@ -23,4 +23,10 @@ public interface INetworkTimeWorkspaceService
     ValueTask<TimeAdjustmentResult> SetSystemTimeAsync(DateTimeOffset targetLocalTime, CancellationToken cancellationToken = default);
 
     ValueTask<PlatformActionResult> OpenSystemTimeSettingsAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Requests elevated privileges for time adjustment.
+    /// On Windows, triggers UAC and restarts the app as administrator.
+    /// </summary>
+    ValueTask<ElevationRequestResult> RequestTimeAdjustmentElevationAsync(CancellationToken cancellationToken = default);
 }
